@@ -11,8 +11,4 @@ let
 in
 {
   gi-gtk-declarative = drv;
-  gi-gtk-declarative-shell = haskellPackages.shellFor {
-    withHoogle = true;
-    packages = p: [drv];
-  };
 }
