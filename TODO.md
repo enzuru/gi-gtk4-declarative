@@ -1,7 +1,7 @@
 # What is left
 
 The GTK 4 port is in place: the library, the examples, and the test
-suites are green. One thing is left. Cross items off as they land.
+suites are green. Two things are left. Cross items off as they land.
 
 ## 1. Model-based views
 
@@ -13,6 +13,29 @@ widgets, so the patching model fits them.
 
 This one needs a design decision first: a declarative list over a model
 is a different thing from a declarative tree of widgets.
+
+## 2. The addresses still point at upstream
+
+The packages are named gi-gtk4-declarative now, but everything that
+says where to find them still names owickstrom's project, because that
+is whose it is and this fork has nowhere of its own yet. Each of these
+needs a decision rather than work:
+
+- `homepage` and `bug-reports`, in both cabal files.
+- `source-repository head`, in the library's cabal file.
+- `maintainer`, in both cabal files, which still reads the original
+  author's name and address. The `author` and `copyright` fields should
+  keep his name either way, which the license asks for.
+- The documentation link in `README.md`, and the site the documentation
+  itself links to, which is built from `docs/` here but published at
+  his address.
+- The README badges, which were taken out rather than left pointing at
+  a package that is not published. Put them back when there is
+  something for them to point at.
+
+Two more outside the repository: the `origin` remote is still
+`owickstrom/gi-gtk-declarative`, so a push would go at upstream, and the
+checkout is still in a directory of the old name.
 
 ## Done
 
