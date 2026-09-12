@@ -21,6 +21,9 @@ module GI.Gtk.Declarative.Attributes
   -- * Event Handling
   , on
   , onM
+  -- * Event Controllers
+  , onController
+  , onControllerM
   -- * EventHandlers
   , EventHandler(..)
   )
@@ -90,6 +93,35 @@ data Attribute widget event where
     => Gtk.SignalProxy widget info
     -> EventHandler gtkCallback widget Impure event
     -> Attribute widget event
+  -- | Add an event controller to the widget, and emit events from one
+  -- of the controller's signals. GTK 4 handles keys, pointers, and
+  -- gestures through controllers rather than through signals on the
+  -- widget itself. Use the 'onController' and 'onControllerM'
+  -- functions, instead of this constructor directly.
+  OnControllerPure
+    ::( Gtk.IsWidget widget
+       , Gtk.IsEventController controller
+       , GI.SignalInfo info
+       , gtkCallback ~ GI.HaskellCallbackType info
+       , ToGtkCallback gtkCallback Pure
+       )
+    => IO controller
+    -> Gtk.SignalProxy controller info
+    -> EventHandler gtkCallback widget Pure event
+    -> Attribute widget event
+  -- | As 'OnControllerPure', with an impure event handler. Use the
+  -- 'onControllerM' function, instead of this constructor directly.
+  OnControllerImpure
+    ::( Gtk.IsWidget widget
+       , Gtk.IsEventController controller
+       , GI.SignalInfo info
+       , gtkCallback ~ GI.HaskellCallbackType info
+       , ToGtkCallback gtkCallback Impure
+       )
+    => IO controller
+    -> Gtk.SignalProxy controller info
+    -> EventHandler gtkCallback widget Impure event
+    -> Attribute widget event
 
 -- | A set of CSS classes.
 type ClassSet = HashSet Text
@@ -102,6 +134,9 @@ instance Functor (Attribute widget) where
     Classes cs               -> Classes cs
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
     OnSignalImpure signal eh -> OnSignalImpure signal (fmap f eh)
+    OnControllerPure new signal eh -> OnControllerPure new signal (fmap f eh)
+    OnControllerImpure new signal eh ->
+      OnControllerImpure new signal (fmap f eh)
 
 -- | Define the CSS classes for the underlying widget's style context. For these
 -- classes to have any effect, this requires a 'Gtk.CssProvider' with CSS files
@@ -139,3 +174,59 @@ onM
   -> userEventHandler
   -> Attribute widget event
 onM signal = OnSignalImpure signal . toEventHandler
+
+-- | Emit events from an event controller added to the widget, using a
+-- pure event handler.
+--
+-- GTK 4 moved keys, pointers, and gestures out of the widget's own
+-- signals and into event controllers, so this is how a declarative
+-- widget reacts to a key press or a click:
+--
+-- @
+-- widget Gtk.Label
+--   [ onController Gtk.gestureClickNew #pressed
+--       (\\_nPress x y -> Clicked x y)
+--   ]
+-- @
+--
+-- The controller is added when the widget is subscribed to, and
+-- removed when that subscription is cancelled. It is found again for
+-- removal by its name, so a name set on the controller beforehand does
+-- not survive.
+--
+-- "GI.Gtk.Declarative.EventController" has ready-made versions of this
+-- for the common controllers.
+onController
+  :: ( Gtk.IsWidget widget
+     , Gtk.IsEventController controller
+     , GI.SignalInfo info
+     , gtkCallback ~ GI.HaskellCallbackType info
+     , ToGtkCallback gtkCallback Pure
+     , ToEventHandler gtkCallback widget Pure
+     , userEventHandler ~ UserEventHandler gtkCallback widget Pure event
+     )
+  => IO controller                      -- ^ Creates the event controller.
+  -> Gtk.SignalProxy controller info    -- ^ A signal of that controller.
+  -> userEventHandler
+  -> Attribute widget event
+onController newController signal =
+  OnControllerPure newController signal . toEventHandler
+
+-- | Emit events from an event controller added to the widget, using an
+-- impure event handler. The handler receives the widget and returns an
+-- IO action of the event, as 'onM' does.
+onControllerM
+  :: ( Gtk.IsWidget widget
+     , Gtk.IsEventController controller
+     , GI.SignalInfo info
+     , gtkCallback ~ GI.HaskellCallbackType info
+     , ToGtkCallback gtkCallback Impure
+     , ToEventHandler gtkCallback widget Impure
+     , userEventHandler ~ UserEventHandler gtkCallback widget Impure event
+     )
+  => IO controller                      -- ^ Creates the event controller.
+  -> Gtk.SignalProxy controller info    -- ^ A signal of that controller.
+  -> userEventHandler
+  -> Attribute widget event
+onControllerM newController signal =
+  OnControllerImpure newController signal . toEventHandler

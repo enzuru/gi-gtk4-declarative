@@ -12,6 +12,8 @@ import qualified GI.Gtk.Declarative.ContainerTest
                                                as ContainerTest
 import qualified GI.Gtk.Declarative.CustomWidgetTest
                                                as CustomWidget
+import qualified GI.Gtk.Declarative.EventControllerTest
+                                               as EventControllerTest
 import qualified GI.Gtk.Declarative.MenuModelTest
                                                as MenuModelTest
 import qualified GI.Gtk.Declarative.PatchTest  as PatchTest
@@ -36,6 +38,7 @@ main = do
         , PatchTest.tests
         , ContainerTest.tests
         , MenuModelTest.tests
+        , EventControllerTest.tests
         ]
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)

@@ -195,3 +195,59 @@ incrDecrButtons =
 !!! note
 
     `(a $> b)` is equivalent to `(const b <$> a)`.
+
+## Event Controllers
+
+GTK 4 took keys, pointers, and gestures out of the widget's own signals
+and put them in _event controllers_, which are objects you add to a
+widget. The GTK 3 signals for this, `key-press-event` and
+`button-press-event` among them, are gone.
+
+The `GI.Gtk.Declarative.EventController` module gives you the common
+controllers as attributes, so they read like any other event handler:
+
+``` haskell
+data Event = Clicked Double Double | KeyPressed Word32
+
+clickable :: Widget Event
+clickable =
+  widget
+    Label
+      [ #label := "Click me"
+      , onClickPressed (\_nPress x y -> Clicked x y)
+      , onKeyPressed (\keyval _keycode _modifiers -> (True, KeyPressed keyval))
+      ]
+```
+
+These are the ones this module names:
+
+- Keys: `onKeyPressed` and `onKeyReleased`
+- Clicks: `onClickPressed` and `onClickReleased`
+- Pointer: `onMotion`, `onPointerEnter`, and `onPointerLeave`
+- Focus: `onFocusEnter` and `onFocusLeave`
+- Scrolling: `onScrolled`
+- Dragging: `onDragBegin`, `onDragUpdate`, and `onDragEnd`
+- Long presses: `onLongPressed`
+
+The handler types follow the same rules as the ones above. A controller
+signal that returns a `Bool`, such as `key-pressed`, takes a pure
+handler returning a tuple of that `Bool` and the event.
+
+For a controller this module does not name, and for handlers that need
+the widget, use `onController` and `onControllerM`. They take an action
+that makes the controller, one of its signals, and the handler:
+
+``` haskell
+widget Label
+  [ onControllerM Gtk.eventControllerKeyNew #keyPressed
+      (\keyval _keycode _modifiers _widget -> do
+          name <- Gdk.keyvalName keyval
+          pure (True, KeyNamed name))
+  ]
+```
+
+A controller is added to the widget when the widget is subscribed to,
+and removed when that subscription is cancelled, which is the same life
+any other event handler here has. The library finds the controller again
+by its name when it removes it, so a name you set on the controller
+yourself does not survive.
