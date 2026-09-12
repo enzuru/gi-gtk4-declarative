@@ -147,6 +147,7 @@ instance Patchable (ListView item) where
     Gtk.listViewSetModel view (Just (viewSelection state))
     connectSelection state view
     applyCommands state view params
+    runAfterCreated view attributes
 
     pure
       (SomeState (StateTreeWidget (StateTreeNode view collected state slots)))

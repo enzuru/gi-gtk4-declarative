@@ -8,6 +8,7 @@
 -- widgets.
 module GI.Gtk.Declarative.Attributes.Internal
   ( addSignalHandler
+  , runAfterCreated
   , createSlots
   , patchSlots
   , subscribeSlots
@@ -127,6 +128,15 @@ removeController widget' name handlerId = do
     when (this == Just name) $ do
       GI.signalHandlerDisconnect controller handlerId
       Gtk.widgetRemoveController widget' controller
+
+-- | Run what the attributes asked to have run once the widget is
+-- built. Creation only: a patch leaves these alone.
+runAfterCreated
+  :: MonadIO m => widget -> Vector (Attribute widget event) -> m ()
+runAfterCreated widget' attributes = liftIO $ for_ attributes $ \attribute ->
+  case attribute of
+    AfterCreated action -> action widget'
+    _                   -> pure ()
 
 --
 -- Widget-valued properties

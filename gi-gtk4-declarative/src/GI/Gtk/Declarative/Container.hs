@@ -106,6 +106,7 @@ instance
     -- The deferred properties name children, so they are set now that
     -- the children are there.
     unless (HashMap.null later) $ updateProperties widget' mempty later
+    runAfterCreated widget' attrs
     return
       (SomeState
         (StateTreeContainer (StateTreeNode widget' collected () slots)

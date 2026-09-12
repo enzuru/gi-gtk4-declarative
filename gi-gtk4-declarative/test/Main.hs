@@ -8,6 +8,8 @@ import           System.Environment
 import           System.Exit
 import           System.IO
 
+import qualified GI.Gtk.Declarative.AfterCreatedTest
+                                               as AfterCreatedTest
 import qualified GI.Gtk.Declarative.ContainerTest
                                                as ContainerTest
 import qualified GI.Gtk.Declarative.CustomWidgetTest
@@ -47,6 +49,7 @@ main = do
         , SlotTest.tests
         , ReferenceTest.tests
         , ModelViewTest.tests
+        , AfterCreatedTest.tests
         ]
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)

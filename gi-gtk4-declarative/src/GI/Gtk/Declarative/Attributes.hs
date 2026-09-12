@@ -20,6 +20,8 @@ module GI.Gtk.Declarative.Attributes
   ( Attribute(..)
   , classes
   , ClassSet
+  -- * After creation
+  , afterCreated
   -- * Widget-valued properties
   , SlotSetter
   , slot
@@ -107,6 +109,11 @@ data Attribute widget event where
     => Gtk.SignalProxy widget info
     -> EventHandler gtkCallback widget Impure event
     -> Attribute widget event
+  -- | Run an action on the widget, once, when it has been built. Use
+  -- the 'afterCreated' function, instead of this constructor directly.
+  AfterCreated
+    ::(widget -> IO ())
+    -> Attribute widget event
   -- | Put a declarative widget in one of this widget's widget-valued
   -- properties, such as a window's title bar. Use the functions in
   -- "GI.Gtk.Declarative.Slots", or 'slot', instead of this constructor
@@ -164,6 +171,7 @@ instance Functor (Attribute widget) where
     Classes cs               -> Classes cs
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
     OnSignalImpure signal eh -> OnSignalImpure signal (fmap f eh)
+    AfterCreated action      -> AfterCreated action
     Slot name setter child   -> Slot name setter (fmap f child)
     Reference setter name    -> Reference setter name
     OnControllerPure new signal eh -> OnControllerPure new signal (fmap f eh)
@@ -279,6 +287,24 @@ slot
   -> Widget event        -- ^ The widget to put there.
   -> Attribute widget event
 slot = Slot
+
+-- | Run an action on the underlying GTK widget, once, when it has been
+-- built and its children are in place.
+--
+-- This is the way out of the declarative model, for the things GTK
+-- gives no other way to reach: adding a style provider to the display,
+-- taking the keyboard focus, or putting a gesture on a widget the
+-- library does not hand you.
+--
+-- @
+-- widget Gtk.Label [afterCreated (\label -> Gtk.widgetGrabFocus label)]
+-- @
+--
+-- It runs at creation and never again. A patch does not run it, so
+-- whatever it does has to be something that survives the widget being
+-- patched, or something the action itself keeps an eye on.
+afterCreated :: (widget -> IO ()) -> Attribute widget event
+afterCreated = AfterCreated
 
 -- | Point a widget-valued property at another widget somewhere else in
 -- the tree, named by its @name@ property.
