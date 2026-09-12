@@ -29,6 +29,7 @@ library
                       , async                   >=2.2  && <2.3
                       , gi-gobject              >=2    && <3
                       , gi-glib                 >=2    && <3
+                      , gi-gio                  >=2    && <3
                       , gi-gtk                  >=4    && <5
                       , gi-gdk                  >=4    && <5
                       , haskell-gi              >=0.26 && <0.27

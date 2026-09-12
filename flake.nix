@@ -50,7 +50,7 @@
               gnumake pkg-config
               gtk4 gtk4.dev gobject-introspection
               adwaita-icon-theme hicolor-icon-theme
-              xvfb-run xdotool
+              xvfb-run xdotool dbus
             ];
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath runtime;
