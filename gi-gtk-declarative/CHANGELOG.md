@@ -1,5 +1,13 @@
 * 0.8.0
     - Port to GTK 4 (gi-gtk 4.x). This is a breaking release; use 0.7 for GTK 3.
+    - Event controllers: `onController`, `onControllerM`, and the named
+      helpers in `GI.Gtk.Declarative.EventController`, since GTK 4 reports
+      keys, pointers, and gestures through controllers rather than through
+      signals on the widget.
+    - Widget-valued properties: `slot`, and the named helpers in
+      `GI.Gtk.Declarative.Slots`, which put a declarative widget in a
+      window's title bar, a frame's label, and the like.
+    - `StateTreeNode` carries the state of a widget's slots.
     - `bin` now works with the new `IsBin` class of this library, with
       instances for the GTK 4 widgets that hold a single child, as GTK 4
       removed `GtkBin`.

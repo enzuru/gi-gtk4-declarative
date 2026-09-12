@@ -97,6 +97,7 @@ instance
                                       properties
     widget' <- Gtk.new ctor (constructPropertiesOf now)
     updateClasses widget' mempty (collectedClasses collected)
+    slots       <- createSlots widget' attrs
     childStates <- forM (unChildren children) $ \child -> do
       childState <- create child
       appendChild widget' child =<< someStateWidget childState
@@ -106,10 +107,12 @@ instance
     unless (HashMap.null later) $ updateProperties widget' mempty later
     return
       (SomeState
-        (StateTreeContainer (StateTreeNode widget' collected ()) childStates)
+        (StateTreeContainer (StateTreeNode widget' collected () slots)
+                            childStates
+        )
       )
 
-  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Container _ _ oldChildren) new@(Container (ctor :: Gtk.ManagedPtr
+  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Container _ oldAttributes oldChildren) new@(Container (ctor :: Gtk.ManagedPtr
       w2
     -> w2) newAttributes (newChildren :: Children c2 e2))
     = case (st, eqT @w1 @w2) of
@@ -127,7 +130,13 @@ instance
                 updateClasses containerWidget
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)
-                let top' = top { stateTreeCollectedAttributes = newCollected }
+                slots <- patchSlots containerWidget
+                                    (stateTreeSlots top)
+                                    oldAttributes
+                                    newAttributes
+                let top' = top { stateTreeCollectedAttributes = newCollected
+                               , stateTreeSlots               = slots
+                               }
                 SomeState <$> patchInContainer
                   (StateTreeContainer top' childStates)
                   containerWidget
@@ -148,9 +157,10 @@ instance
     StateTreeContainer top childStates -> do
       parentWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
       handlers' <- foldMap (addSignalHandler cb parentWidget) props
+      slots'    <- subscribeSlots (stateTreeSlots top) props cb
       subs <- flip foldMap (Vector.zip (unChildren children) childStates)
         $ \(c, childState) -> subscribe c childState cb
-      return (handlers' <> subs)
+      return (handlers' <> slots' <> subs)
     _ ->
       error
         "Warning: Cannot subscribe to Container events with a non-container state tree."

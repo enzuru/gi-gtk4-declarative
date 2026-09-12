@@ -46,11 +46,12 @@ instance Patchable (SingleWidget widget) where
       let collected = collectAttributes attrs
       widget' <- Gtk.new ctor (constructProperties collected)
       updateClasses widget' mempty (collectedClasses collected)
+      slots <- createSlots widget' attrs
       return
-        (SomeState (StateTreeWidget (StateTreeNode widget' collected ())))
+        (SomeState (StateTreeWidget (StateTreeNode widget' collected () slots)))
   patch (SomeState (st :: StateTree stateType w child event cs)) (SingleWidget (_ :: Gtk.ManagedPtr
       w1
-    -> w1) _) (SingleWidget (ctor :: Gtk.ManagedPtr w2 -> w2) newAttributes)
+    -> w1) oldAttributes) (SingleWidget (ctor :: Gtk.ManagedPtr w2 -> w2) newAttributes)
     = case (st, eqT @w @w1, eqT @w1 @w2) of
       (StateTreeWidget top, Just Refl, Just Refl) ->
         let
@@ -66,11 +67,15 @@ instance Patchable (SingleWidget widget) where
               updateClasses w
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)
-              let top' = top { stateTreeCollectedAttributes = newCollected }
+              slots <- patchSlots w
+                                  (stateTreeSlots top)
+                                  oldAttributes
+                                  newAttributes
               return
                 (SomeState
-                  (StateTreeWidget top'
+                  (StateTreeWidget top
                     { stateTreeCollectedAttributes = newCollected
+                    , stateTreeSlots               = slots
                     }
                   )
                 )
@@ -85,8 +90,9 @@ instance EventSource (SingleWidget widget) where
       event
       cs)) cb
     = case (st, eqT @w1 @w2) of
-      (StateTreeWidget top, Just Refl) ->
-        foldMap (addSignalHandler cb (stateTreeWidget top)) props
+      (StateTreeWidget top, Just Refl) -> do
+        handlers <- foldMap (addSignalHandler cb (stateTreeWidget top)) props
+        (handlers <>) <$> subscribeSlots (stateTreeSlots top) props cb
       _ -> pure (fromCancellation (pure ()))
 
 -- instance (Typeable widget, Functor (SingleWidget widget))

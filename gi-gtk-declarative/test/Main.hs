@@ -17,6 +17,7 @@ import qualified GI.Gtk.Declarative.EventControllerTest
 import qualified GI.Gtk.Declarative.MenuModelTest
                                                as MenuModelTest
 import qualified GI.Gtk.Declarative.PatchTest  as PatchTest
+import qualified GI.Gtk.Declarative.SlotTest   as SlotTest
 
 
 main :: IO ()
@@ -39,6 +40,7 @@ main = do
         , ContainerTest.tests
         , MenuModelTest.tests
         , EventControllerTest.tests
+        , SlotTest.tests
         ]
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)

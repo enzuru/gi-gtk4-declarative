@@ -19,6 +19,7 @@ import           Data.Vector                    ( Vector )
 import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative.Attributes
 import           GI.Gtk.Declarative.Attributes.Collected
+import           GI.Gtk.Declarative.Attributes.Internal
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.State
@@ -70,9 +71,10 @@ instance
     let collected = collectAttributes (customAttributes custom)
     updateProperties widget mempty (collectedProperties collected)
     updateClasses widget mempty (collectedClasses collected)
+    slots <- createSlots widget (customAttributes custom)
     pure
       (SomeState
-        (StateTreeWidget (StateTreeNode widget collected internalState))
+        (StateTreeWidget (StateTreeNode widget collected internalState slots))
       )
 
   patch (SomeState (stateTree :: StateTree st w e c cs)) old new =
@@ -99,6 +101,10 @@ instance
                 updateClasses widget'
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)
+                slots <- patchSlots widget'
+                                    (stateTreeSlots (stateTreeNode stateTree))
+                                    (customAttributes old)
+                                    (customAttributes new)
                 let node = stateTreeNode stateTree
                 internalState' <- case p of
                   CustomModify f ->
@@ -110,6 +116,7 @@ instance
                     (StateTreeWidget node
                       { stateTreeCustomState         = internalState'
                       , stateTreeCollectedAttributes = newCollected
+                      , stateTreeSlots               = slots
                       }
                     )
                   )
@@ -125,9 +132,14 @@ instance
       Just Refl -> do
         w' <- Gtk.unsafeCastTo (customWidget custom)
                                (stateTreeNodeWidget stateTree)
-        customSubscribe custom
-                        (customParams custom)
-                        (stateTreeCustomState (stateTreeNode stateTree))
-                        w'
-                        cb
+        slots' <- subscribeSlots (stateTreeSlots (stateTreeNode stateTree))
+                                 (customAttributes custom)
+                                 cb
+        (slots' <>) <$> customSubscribe custom
+                                        (customParams custom)
+                                        (stateTreeCustomState
+                                          (stateTreeNode stateTree)
+                                        )
+                                        w'
+                                        cb
       Nothing -> pure (fromCancellation (pure ()))

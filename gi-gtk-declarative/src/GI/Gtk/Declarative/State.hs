@@ -11,6 +11,8 @@
 -- patching.
 module GI.Gtk.Declarative.State where
 
+import           Data.HashMap.Strict                     (HashMap)
+import           Data.Text                               (Text)
 import           Data.Typeable
 
 import           Data.Vector                             (Vector)
@@ -54,6 +56,9 @@ data StateTreeNode widget event customState = StateTreeNode
   { stateTreeWidget              :: !widget
   , stateTreeCollectedAttributes :: !(Collected widget event)
   , stateTreeCustomState         :: customState
+  , stateTreeSlots               :: !(HashMap Text SomeState)
+  -- ^ The state of the widgets in this widget's widget-valued
+  -- properties, such as a window's title bar, by slot name.
   }
 
 -- * Convenience accessor functions

@@ -6,6 +6,8 @@
 {-# LANGUAGE GADTs                  #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE RecordWildCards         #-}
+{-# LANGUAGE ScopedTypeVariables     #-}
 {-# LANGUAGE OverloadedLabels       #-}
 {-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE TypeOperators          #-}
@@ -18,6 +20,12 @@ module GI.Gtk.Declarative.Attributes
   ( Attribute(..)
   , classes
   , ClassSet
+  -- * Widget-valued properties
+  , SlotSetter
+  , slot
+  -- * Collecting attributes
+  , collectAttributes
+  , collectSlots
   -- * Event Handling
   , on
   , onM
@@ -29,20 +37,26 @@ module GI.Gtk.Declarative.Attributes
   )
 where
 
+import           Data.Foldable                  ( foldl' )
 import qualified Data.GI.Base.Attributes       as GI
 import qualified Data.GI.Base.Signals          as GI
-import           Data.HashSet                   ( HashSet )
+import           Data.HashMap.Strict            ( HashMap )
+import qualified Data.HashMap.Strict           as HashMap
 import qualified Data.HashSet                  as HashSet
 import qualified Data.Text                     as T
 import           Data.Text                      ( Text )
 import           Data.Typeable
+import           Data.Vector                    ( Vector )
 import           GHC.TypeLits                   ( KnownSymbol
                                                 , Symbol
+                                                , symbolVal
                                                 )
 import qualified GI.Gtk                        as Gtk
 
+import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.Attributes.Internal.EventHandler
 import           GI.Gtk.Declarative.Attributes.Internal.Conversions
+import           GI.Gtk.Declarative.Widget
 
 -- * Attributes
 
@@ -93,6 +107,16 @@ data Attribute widget event where
     => Gtk.SignalProxy widget info
     -> EventHandler gtkCallback widget Impure event
     -> Attribute widget event
+  -- | Put a declarative widget in one of this widget's widget-valued
+  -- properties, such as a window's title bar. Use the functions in
+  -- "GI.Gtk.Declarative.Slots", or 'slot', instead of this constructor
+  -- directly.
+  Slot
+    ::Gtk.IsWidget widget
+    => Text
+    -> SlotSetter widget
+    -> Widget event
+    -> Attribute widget event
   -- | Add an event controller to the widget, and emit events from one
   -- of the controller's signals. GTK 4 handles keys, pointers, and
   -- gestures through controllers rather than through signals on the
@@ -123,9 +147,6 @@ data Attribute widget event where
     -> EventHandler gtkCallback widget Impure event
     -> Attribute widget event
 
--- | A set of CSS classes.
-type ClassSet = HashSet Text
-
 -- | Attributes have a 'Functor' instance that maps events in all
 -- event handler.
 instance Functor (Attribute widget) where
@@ -134,6 +155,7 @@ instance Functor (Attribute widget) where
     Classes cs               -> Classes cs
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
     OnSignalImpure signal eh -> OnSignalImpure signal (fmap f eh)
+    Slot name setter child   -> Slot name setter (fmap f child)
     OnControllerPure new signal eh -> OnControllerPure new signal (fmap f eh)
     OnControllerImpure new signal eh ->
       OnControllerImpure new signal (fmap f eh)
@@ -230,3 +252,55 @@ onControllerM
   -> Attribute widget event
 onControllerM newController signal =
   OnControllerImpure newController signal . toEventHandler
+
+-- | How a widget-valued property is set. 'Nothing' unsets it.
+type SlotSetter widget = widget -> Maybe Gtk.Widget -> IO ()
+
+-- | Put a declarative widget in a widget-valued property of another
+-- widget, such as a window's title bar.
+--
+-- The name tells one slot from another when patching, so a widget's
+-- two slots must not share a name. "GI.Gtk.Declarative.Slots" has this
+-- ready-made for the widgets that have such a property.
+slot
+  :: Gtk.IsWidget widget
+  => Text                -- ^ A name for the slot, unique to this widget.
+  -> SlotSetter widget   -- ^ Sets the property.
+  -> Widget event        -- ^ The widget to put there.
+  -> Attribute widget event
+slot = Slot
+
+-- | Collect declarative markup attributes to the patching-optimized
+-- 'Collected' data structure.
+collectAttributes :: Vector (Attribute widget event) -> Collected widget event
+collectAttributes = foldl' go mempty
+ where
+  go
+    :: Collected widget event
+    -> Attribute widget event
+    -> Collected widget event
+  go Collected {..} = \case
+    attr := value -> Collected
+      { collectedProperties = HashMap.insert (T.pack (symbolVal attr))
+                                             (CollectedProperty attr value)
+                                             collectedProperties
+      , ..
+      }
+    Classes classSet ->
+      Collected { collectedClasses = collectedClasses <> classSet, .. }
+    _ -> Collected { .. }
+
+-- | The widget-valued properties of an attribute list, by slot name.
+collectSlots
+  :: forall widget event
+   . Vector (Attribute widget event)
+  -> HashMap Text (SlotSetter widget, Widget event)
+collectSlots = foldl' go HashMap.empty
+ where
+  go
+    :: HashMap Text (SlotSetter widget, Widget event)
+    -> Attribute widget event
+    -> HashMap Text (SlotSetter widget, Widget event)
+  go slots = \case
+    Slot name setter child -> HashMap.insert name (setter, child) slots
+    _                      -> slots
