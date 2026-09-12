@@ -23,6 +23,7 @@ module GI.Gtk.Declarative.Attributes
   -- * Widget-valued properties
   , SlotSetter
   , slot
+  , reference
   -- * Collecting attributes
   , collectAttributes
   , collectSlots
@@ -117,6 +118,15 @@ data Attribute widget event where
     -> SlotSetter widget
     -> Widget event
     -> Attribute widget event
+  -- | Point one of this widget's widget-valued properties at another
+  -- widget, named by its @name@ property. Use the functions in
+  -- "GI.Gtk.Declarative.References", or 'reference', instead of this
+  -- constructor directly.
+  Reference
+    ::Gtk.IsWidget widget
+    => SlotSetter widget
+    -> Text
+    -> Attribute widget event
   -- | Add an event controller to the widget, and emit events from one
   -- of the controller's signals. GTK 4 handles keys, pointers, and
   -- gestures through controllers rather than through signals on the
@@ -156,6 +166,7 @@ instance Functor (Attribute widget) where
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
     OnSignalImpure signal eh -> OnSignalImpure signal (fmap f eh)
     Slot name setter child   -> Slot name setter (fmap f child)
+    Reference setter name    -> Reference setter name
     OnControllerPure new signal eh -> OnControllerPure new signal (fmap f eh)
     OnControllerImpure new signal eh ->
       OnControllerImpure new signal (fmap f eh)
@@ -269,6 +280,35 @@ slot
   -> Widget event        -- ^ The widget to put there.
   -> Attribute widget event
 slot = Slot
+
+-- | Point a widget-valued property at another widget somewhere else in
+-- the tree, named by its @name@ property.
+--
+-- Some widgets do not hold the widget they work on: a
+-- 'Gtk.StackSwitcher' switches a 'Gtk.Stack' that lives wherever the
+-- layout puts it, which is usually not next to the switcher. Name the
+-- one and point at it from the other:
+--
+-- @
+-- container Gtk.HeaderBar []
+--   [ headerBarTitle (widget Gtk.StackSwitcher [switcherStack "pages"]) ]
+-- ...
+-- container Gtk.Stack [#name := "pages"] children
+-- @
+--
+-- The reference is resolved once the whole tree is built, and again
+-- after each patch, by looking through the widgets under the same root
+-- for one with that name. A name that matches nothing is reported as a
+-- warning through GLib.
+--
+-- "GI.Gtk.Declarative.References" has this ready-made for the widgets
+-- that point at another widget.
+reference
+  :: Gtk.IsWidget widget
+  => SlotSetter widget  -- ^ Sets the property.
+  -> Text               -- ^ The @name@ of the widget to point at.
+  -> Attribute widget event
+reference = Reference
 
 -- | Collect declarative markup attributes to the patching-optimized
 -- 'Collected' data structure.

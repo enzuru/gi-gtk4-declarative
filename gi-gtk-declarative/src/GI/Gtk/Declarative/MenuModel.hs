@@ -222,6 +222,7 @@ instance Patchable (MenuWidget widget) where
     dispatch <- newIORef (const (pure ()))
     _        <- buildMenu widget' dispatch items
     slots <- createSlots widget' attrs
+    resolveReferences widget' attrs
     let state = MenuState { menuShape = shapeOf items, menuDispatch = dispatch }
     pure
       (SomeState (StateTreeWidget (StateTreeNode widget' collected state slots)))
@@ -251,6 +252,7 @@ instance Patchable (MenuWidget widget) where
                                        (stateTreeSlots top)
                                        oldAttributes
                                        newAttributes
+                resolveReferences widget' newAttributes
                 newState <- if menuShape oldState == newShape
                   then pure oldState
                   else do

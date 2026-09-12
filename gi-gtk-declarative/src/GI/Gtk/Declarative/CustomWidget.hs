@@ -72,6 +72,7 @@ instance
     updateProperties widget mempty (collectedProperties collected)
     updateClasses widget mempty (collectedClasses collected)
     slots <- createSlots widget (customAttributes custom)
+    resolveReferences widget (customAttributes custom)
     pure
       (SomeState
         (StateTreeWidget (StateTreeNode widget collected internalState slots))
@@ -105,6 +106,7 @@ instance
                                     (stateTreeSlots (stateTreeNode stateTree))
                                     (customAttributes old)
                                     (customAttributes new)
+                resolveReferences widget' (customAttributes new)
                 let node = stateTreeNode stateTree
                 internalState' <- case p of
                   CustomModify f ->

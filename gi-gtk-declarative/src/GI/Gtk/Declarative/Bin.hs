@@ -162,6 +162,7 @@ instance Patchable (Bin parent) where
     updateClasses widget' mempty (collectedClasses collected)
 
     slots       <- createSlots widget' attrs
+    resolveReferences widget' attrs
     childState  <- create child
     childWidget <- someStateWidget childState
     setBinChild widget' (Just childWidget)
@@ -192,6 +193,7 @@ instance Patchable (Bin parent) where
                                   (stateTreeSlots top)
                                   oldAttributes
                                   newAttributes
+              resolveReferences binWidget newAttributes
 
               let top' = top { stateTreeCollectedAttributes = newCollected
                              , stateTreeSlots               = slots

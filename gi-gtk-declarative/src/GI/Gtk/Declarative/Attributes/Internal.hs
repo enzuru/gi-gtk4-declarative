@@ -11,10 +11,12 @@ module GI.Gtk.Declarative.Attributes.Internal
   , createSlots
   , patchSlots
   , subscribeSlots
+  , resolveReferences
   )
 where
 
 import           Control.Monad                  ( forM
+                                                , void
                                                 , when
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
@@ -29,13 +31,19 @@ import qualified Data.HashMap.Strict           as HashMap
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( Vector )
+import qualified Data.Vector                   as Vector
 import qualified Data.GI.Base.Signals          as Signals
+import           GHC.Ptr                        ( nullPtr )
+import qualified GI.GLib                       as GLib
+import qualified GI.GLib.Constants             as GLib
 import qualified GI.GObject                    as GI
 import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 
 import           GI.Gtk.Declarative.Attributes
 import           GI.Gtk.Declarative.Attributes.Internal.Conversions
+import           GI.Gtk.Declarative.Container.Class
+                                                ( childWidgets )
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.State
@@ -179,3 +187,57 @@ subscribeSlots states attributes cb =
   subscribeSlot name (_, child) = case HashMap.lookup name states of
     Just state -> subscribe child state cb
     Nothing    -> pure mempty
+
+--
+-- References to other widgets
+--
+
+-- | Point this widget's references at the widgets they name.
+--
+-- The widget being pointed at is somewhere else in the tree, and at the
+-- time this widget is made that tree is still being built: this widget
+-- does not even have a parent yet. So the work is left for the main
+-- loop to pick up, by which time the tree is whole.
+resolveReferences
+  :: (Gtk.IsWidget widget, MonadIO m)
+  => widget
+  -> Vector (Attribute widget event)
+  -> m ()
+resolveReferences widget' attributes = for_ attributes $ \attribute ->
+  case attribute of
+    Reference setter name ->
+      void $ GLib.idleAdd GLib.PRIORITY_DEFAULT $ do
+        target <- findNamed widget' name
+        case target of
+          Nothing -> GLib.logDefaultHandler
+            (Just "gi-gtk-declarative")
+            [GLib.LogLevelFlagsLevelWarning]
+            (Just ("There is no widget named " <> name <> " to point at."))
+            nullPtr
+          Just _ -> pure ()
+        setter widget' target
+        pure False
+    _ -> pure ()
+
+-- | Look through the widgets under this one's root for one with this
+-- name. A widget with no name of its own answers with the name of its
+-- class, so a name to point at is best made a distinctive one.
+findNamed :: Gtk.IsWidget widget => widget -> Text -> IO (Maybe Gtk.Widget)
+findNamed widget' name = do
+  root <- topmost =<< Gtk.toWidget widget'
+  search root
+ where
+  topmost w = do
+    parent <- Gtk.widgetGetParent w
+    maybe (pure w) topmost parent
+  search w = do
+    thisName <- Gtk.widgetGetName w
+    if thisName == name
+      then pure (Just w)
+      else do
+        children <- childWidgets w
+        firstOf (Vector.toList children)
+  firstOf []       = pure Nothing
+  firstOf (w : ws) = do
+    found <- search w
+    maybe (firstOf ws) (pure . Just) found

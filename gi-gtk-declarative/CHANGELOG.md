@@ -7,6 +7,10 @@
     - Widget-valued properties: `slot`, and the named helpers in
       `GI.Gtk.Declarative.Slots`, which put a declarative widget in a
       window's title bar, a frame's label, and the like.
+    - References: `reference`, and the named helpers in
+      `GI.Gtk.Declarative.References`, which point a widget-valued
+      property at another widget by its name, for the widgets that work
+      on a widget they do not hold, such as a stack switcher.
     - `StateTreeNode` carries the state of a widget's slots.
     - `bin` now works with the new `IsBin` class of this library, with
       instances for the GTK 4 widgets that hold a single child, as GTK 4
