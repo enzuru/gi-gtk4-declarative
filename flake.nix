@@ -12,7 +12,7 @@
       # records bare sonames (libgtk-4.so.1, ...) in the typelibs, and there is
       # no /usr/lib on NixOS, so the loader has to be told where they live.
       runtimeLibs = pkgs: with pkgs; [
-        glib gtk4 pango gdk-pixbuf graphene harfbuzz cairo
+        glib gtk4 libadwaita pango gdk-pixbuf graphene harfbuzz cairo
         gobject-introspection
       ];
 
@@ -27,6 +27,7 @@
         pipes pipes-concurrency pipes-extras
         haskell-gi haskell-gi-base haskell-gi-overloading
         gi-glib gi-gobject gi-gio gi-gdk gi-gtk gi-gsk gi-pango gi-cairo
+        gi-adwaita
         criterion
       ];
     in {
@@ -48,7 +49,7 @@
               ghc
               cabal-install
               gnumake pkg-config
-              gtk4 gtk4.dev gobject-introspection
+              gtk4 gtk4.dev libadwaita gobject-introspection
               adwaita-icon-theme hicolor-icon-theme
               xvfb-run xdotool dbus
             ];

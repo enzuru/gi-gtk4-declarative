@@ -13,6 +13,8 @@ APP      := gi-gtk4-declarative-app-simple/src
 TEST     := gi-gtk4-declarative/test
 BENCH    := gi-gtk4-declarative/bench
 APPTEST  := gi-gtk4-declarative-app-simple/test
+ADWAITA  := gi-gtk4-declarative-adwaita/src
+ADWTEST  := gi-gtk4-declarative-adwaita/test
 EXAMPLES := examples
 
 # The cabal files say Haskell2010, so the direct GHC calls say it too,
@@ -40,7 +42,7 @@ PACKAGES := -hide-package gi-gtk4 -hide-package gi-gdk4
 # cabal's, with GHCRTS=-M4g in the environment.
 GHC_RTS := +RTS -M4g -A64m -RTS
 
-SOURCES := $(shell find $(LIB) $(APP) -name '*.hs')
+SOURCES := $(shell find $(LIB) $(APP) $(ADWAITA) -name '*.hs')
 
 # A nested X server, which is all a test needs: the tests drive the
 # widgets from code and read them back, so nothing has to be on screen,
@@ -52,7 +54,7 @@ XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 # under a bus of its own.
 DBUS := dbus-run-session --
 
-.PHONY: all build examples check check-lib check-app check-input bench docs clean
+.PHONY: all build examples check check-lib check-adwaita check-app check-input bench docs clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
 # interface, so `make -j` multiplies the memory rather than dividing the
@@ -61,12 +63,13 @@ DBUS := dbus-run-session --
 
 all: build
 
-# Typecheck the library and app-simple without producing code, which is
-# the fast gate while working.
+# Typecheck the three libraries without producing code, which is the
+# fast gate while working.
 #
 # The model views are named here as well. GHC follows imports, and the
 # umbrella module does not re-export them, so they would go unchecked
-# until the test binary was built.
+# until the test binary was built. The libadwaita package is a compiler
+# call of its own, because nothing in the other two imports it.
 build:
 	@mkdir -p $(BUILD)
 	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) $(PACKAGES) \
@@ -74,6 +77,12 @@ build:
 	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs \
 	  $(LIB)/GI/Gtk/Declarative/ModelView/ListView.hs \
 	  $(LIB)/GI/Gtk/Declarative/ModelView/ColumnView.hs \
+	  $(GHC_RTS)
+	ghc -fno-code -i$(LIB) -i$(ADWAITA) $(WARNINGS) $(PACKAGES) \
+	  -outputdir $(BUILD)/adwaita-objects \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Slots.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/TabView.hs \
 	  $(GHC_RTS)
 
 # The examples are part of the build: they are what says the library is
@@ -84,7 +93,7 @@ examples:
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
 	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
-check: check-lib check-app check-input
+check: check-lib check-adwaita check-app check-input
 
 # The library's own suite: patching, custom widgets, every container,
 # and the menus.
@@ -95,6 +104,16 @@ $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/De
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/test-objects -o $@ $(TEST)/Main.hs $(GHC_RTS)
+
+# The libadwaita widgets, which are a package of their own because the
+# core depends on GTK and on nothing else.
+check-adwaita: $(BUILD)/adwaita-tests
+	$(XVFB) $(BUILD)/adwaita-tests
+
+$(BUILD)/adwaita-tests: $(SOURCES) $(wildcard $(ADWTEST)/*.hs) $(wildcard $(ADWTEST)/GI/Gtk/Declarative/Adwaita/*.hs)
+	@mkdir -p $(BUILD)
+	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(PACKAGES) -threaded \
+	  -outputdir $(BUILD)/adwaita-test-objects -o $@ $(ADWTEST)/Main.hs $(GHC_RTS)
 
 # The application loop: inputs, exits, and exceptions.
 check-app: $(BUILD)/app-tests

@@ -57,6 +57,10 @@ Note that `gi-gtk4-declarative-app-simple` is not strictly required,
 unless you want to write your application using the
 [App.Simple](app-simple.md) architecture.
 
+A third package, `gi-gtk4-declarative-adwaita`, holds the
+[libadwaita](widgets/libadwaita.md) widgets. Add it, and `gi-adwaita`,
+if your program is a GNOME application.
+
 ### Installing and Building
 
 Install dependencies and build your executable:

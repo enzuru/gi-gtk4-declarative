@@ -16,6 +16,7 @@ nav:
         - widgets/containers.md
         - widgets/model-views.md
         - widgets/menus.md
+        - widgets/libadwaita.md
         - widgets/custom-widgets.md
     - 'Attributes':
         - attributes/properties.md

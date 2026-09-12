@@ -1,4 +1,5 @@
 packages:
   gi-gtk4-declarative
   gi-gtk4-declarative-app-simple
+  gi-gtk4-declarative-adwaita
   examples

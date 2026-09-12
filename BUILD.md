@@ -12,9 +12,9 @@ nix develop
 Inside that shell, the Makefile builds and tests everything:
 
 ```
-make build      # typecheck the two libraries
+make build      # typecheck the three libraries
 make examples   # build the example programs
-make check      # run both test suites under Xvfb
+make check      # run every test suite under Xvfb
 ```
 
 ## With Cabal
