@@ -75,11 +75,31 @@ The view has three of its own:
 The last one is how an application remembers a column layout the user
 arranged.
 
+## Header menus
+
+A column can carry a menu on its header, for what a person does to a
+whole column:
+
+``` haskell
+(column "name" "Name" renderCell)
+  { columnHeaderMenu =
+      [ menuItem "Insert before" (InsertBefore "name")
+      , menuItem "Remove" (Remove "name")
+      ]
+  }
+```
+
+The items are the declarative ones from
+`GI.Gtk.Declarative.MenuModel`, so their events arrive like any other
+event here. The menu is built again only when its shape changes, and
+the events behind it are always the ones from the latest render.
+
 ## What is still done by hand
 
 GTK has no factory for column headers. A header is its title text and
-nothing else, so a program that wants a widget of its own up there, or a
-gesture on a header, reaches for the header widget by hand.
+its menu and nothing else, so a program that wants a widget of its own
+up there, or a gesture on a header, reaches for the header widget by
+hand, with `afterCreated`.
 
 Per-cell colors are a stylesheet matter. A cell can name its CSS classes
 declaratively, but something has to put those classes in a provider, and

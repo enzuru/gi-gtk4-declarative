@@ -30,6 +30,16 @@ module GI.Gtk.Declarative.MenuModel
   , menuButton
   , MenuWidget(..)
   , IsMenuHolder(..)
+  -- * For widgets that show a menu of their own
+  --
+  -- | A menu is a model and a group of actions, and the group goes on a
+  -- widget. A widget that is not the one showing the menu, such as a
+  -- column of a column view, needs to build the two and place them
+  -- itself, so the pieces are here.
+  , MenuShape
+  , buildMenuModel
+  , menuShapeOf
+  , menuLeafEvents
   )
 where
 
@@ -140,21 +150,25 @@ data MenuState = MenuState
   , menuDispatch :: IORef (Int -> IO ())
   }
 
-shapeOf :: Vector (MenuItem event) -> [MenuShape]
-shapeOf = map shapeOfItem . Vector.toList
+-- | The shape of a menu, which is what decides whether a patch has to
+-- build the model again.
+menuShapeOf :: Vector (MenuItem event) -> [MenuShape]
+menuShapeOf = map shapeOfItem . Vector.toList
  where
   shapeOfItem = \case
     MenuItem label _        -> ItemShape label
-    SubMenu  label items    -> SubMenuShape label (shapeOf items)
-    MenuSection label items -> SectionShape label (shapeOf items)
+    SubMenu  label items    -> SubMenuShape label (menuShapeOf items)
+    MenuSection label items -> SectionShape label (menuShapeOf items)
 
 -- | The events of all the items that can be activated, in the order
 -- the actions behind them are numbered.
-leafEvents :: Vector (MenuItem event) -> Vector event
-leafEvents = Vector.concatMap $ \case
+-- | The events of the items that can be activated, in the order the
+-- actions behind them are numbered.
+menuLeafEvents :: Vector (MenuItem event) -> Vector event
+menuLeafEvents = Vector.concatMap $ \case
   MenuItem _ event  -> Vector.singleton event
-  SubMenu  _ items  -> leafEvents items
-  MenuSection _ items -> leafEvents items
+  SubMenu  _ items  -> menuLeafEvents items
+  MenuSection _ items -> menuLeafEvents items
 
 -- | The action group the menu's actions live in.
 actionPrefix :: Text
@@ -163,30 +177,47 @@ actionPrefix = "menu"
 actionName :: Int -> Text
 actionName i = "item" <> Text.pack (show i)
 
+-- | Build the menu model and the actions behind it, under this action
+-- prefix. The caller decides which widget the group goes on, since the
+-- widget showing a menu is not always the one that can hold actions.
+--
+-- The actions dispatch through the given reference, by the position of
+-- the item among the ones that can be activated, which is the order
+-- 'menuLeafEvents' answers in.
+buildMenuModel
+  :: Text
+  -> IORef (Int -> IO ())
+  -> Vector (MenuItem event)
+  -> IO (Gio.MenuModel, Gio.SimpleActionGroup)
+buildMenuModel prefix dispatch items = do
+  model  <- Gio.menuNew
+  group  <- Gio.simpleActionGroupNew
+  _      <- addItems prefix model group dispatch 0 items
+  model' <- Gio.toMenuModel model
+  pure (model', group)
+
 -- | Build the menu model and the actions behind it, and hand both to
--- the widget. Returns the number of activatable items.
+-- the widget.
 buildMenu
   :: (Gtk.IsWidget widget, IsMenuHolder widget)
   => widget
   -> IORef (Int -> IO ())
   -> Vector (MenuItem event)
-  -> IO Int
+  -> IO ()
 buildMenu widget' dispatch items = do
-  model <- Gio.menuNew
-  group <- Gio.simpleActionGroupNew
-  count <- addItems model group dispatch 0 items
+  (model, group) <- buildMenuModel actionPrefix dispatch items
   Gtk.widgetInsertActionGroup widget' actionPrefix (Just group)
-  setMenuModel widget' . Just =<< Gio.toMenuModel model
-  pure count
+  setMenuModel widget' (Just model)
 
 addItems
-  :: Gio.Menu
+  :: Text
+  -> Gio.Menu
   -> Gio.SimpleActionGroup
   -> IORef (Int -> IO ())
   -> Int
   -> Vector (MenuItem event)
   -> IO Int
-addItems model group dispatch = foldM addItem
+addItems prefix model group dispatch = foldM addItem
  where
   addItem next = \case
     MenuItem label _ -> do
@@ -197,16 +228,16 @@ addItems model group dispatch = foldM addItem
       Gio.actionMapAddAction group action
       Gio.menuAppend model
                      (Just label)
-                     (Just (actionPrefix <> "." <> actionName next))
+                     (Just (prefix <> "." <> actionName next))
       pure (next + 1)
     SubMenu label items -> do
       sub   <- Gio.menuNew
-      next' <- addItems sub group dispatch next items
+      next' <- addItems prefix sub group dispatch next items
       Gio.menuAppendSubmenu model (Just label) sub
       pure next'
     MenuSection label items -> do
       sub   <- Gio.menuNew
-      next' <- addItems sub group dispatch next items
+      next' <- addItems prefix sub group dispatch next items
       Gio.menuAppendSection model label sub
       pure next'
 
@@ -223,7 +254,7 @@ instance Patchable (MenuWidget widget) where
     _        <- buildMenu widget' dispatch items
     slots <- createSlots widget' attrs
     resolveReferences widget' attrs
-    let state = MenuState { menuShape = shapeOf items, menuDispatch = dispatch }
+    let state = MenuState { menuShape = menuShapeOf items, menuDispatch = dispatch }
     pure
       (SomeState (StateTreeWidget (StateTreeNode widget' collected state slots)))
 
@@ -237,7 +268,7 @@ instance Patchable (MenuWidget widget) where
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
             oldState          = stateTreeCustomState top
-            newShape          = shapeOf newItems
+            newShape          = menuShapeOf newItems
         in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
               then Modify $ do
                 let widget' = stateTreeWidget top
@@ -279,7 +310,7 @@ instance EventSource (MenuWidget widget) where
     = case (st, eqT @cs @MenuState) of
       (StateTreeWidget top, Just Refl) -> do
         let state  = stateTreeCustomState top
-            events = leafEvents items
+            events = menuLeafEvents items
         writeIORef (menuDispatch state)
                    (\i -> for_ (events Vector.!? i) cb)
         widget'  <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
