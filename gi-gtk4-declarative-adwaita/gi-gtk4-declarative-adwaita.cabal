@@ -1,0 +1,61 @@
+name:                 gi-gtk4-declarative-adwaita
+version:              0.8.0
+synopsis:             Declarative libadwaita widgets for gi-gtk4-declarative.
+description:          The libadwaita widgets that gi-gtk4-declarative
+                      cannot hold itself, because the core package
+                      depends on GTK and on nothing else: the
+                      single-child widgets, the toolbar view and its
+                      bars, and a declarative AdwTabView.
+
+                      A program that uses this package calls @Adw.init@,
+                      or makes an @AdwApplication@, which calls it.
+license:              MPL-2.0
+license-file:         LICENSE
+author:               Oskar Wickström
+maintainer:           oskar.wickstrom@gmail.com
+copyright:            Oskar Wickström
+homepage:             https://owickstrom.github.io/gi-gtk-declarative/
+bug-reports:          https://github.com/owickstrom/gi-gtk-declarative/issues
+category:             Graphics
+build-type:           Simple
+cabal-version:        >=1.10
+extra-source-files:   CHANGELOG.md
+tested-with:          GHC == 9.10.3
+
+library
+  exposed-modules:      GI.Gtk.Declarative.Adwaita.Bin
+                      , GI.Gtk.Declarative.Adwaita.Slots
+                      , GI.Gtk.Declarative.Adwaita.TabView
+  build-depends:        base                    >=4.10 && <5
+                      , gi-adwaita              >=1    && <2
+                      , gi-gobject              >=2    && <3
+                      , gi-gtk                  >=4    && <5
+                      , haskell-gi              >=0.26 && <0.27
+                      , haskell-gi-base         >=0.26 && <0.27
+                      , haskell-gi-overloading  >=1.0  && <1.1
+                      , text                    >=1.2  && <2.2
+                      , vector                  >=0.12 && <0.14
+                      , gi-gtk4-declarative     >=0.8  && <0.9
+  hs-source-dirs:       src
+  default-language:     Haskell2010
+  ghc-options:          -Wall
+
+test-suite gi-gtk4-declarative-adwaita-tests
+  type:              exitcode-stdio-1.0
+  hs-source-dirs:    test
+  main-is:           Main.hs
+  build-depends:     base       >=4    && <5
+                   , gi-adwaita >=1    && <2
+                   , gi-glib    >=2    && <3
+                   , gi-gtk     >=4    && <5
+                   , gi-gtk4-declarative
+                   , gi-gtk4-declarative-adwaita
+                   , hedgehog   >=1    && <2
+                   , stm
+                   , text
+                   , vector
+  ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
+  default-language:  Haskell2010
+  other-modules:     GI.Gtk.Declarative.Adwaita.BinTest
+                   , GI.Gtk.Declarative.Adwaita.TabViewTest
+                   , GI.Gtk.Declarative.Adwaita.TestUtils

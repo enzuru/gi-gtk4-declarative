@@ -1,5 +1,5 @@
-# The two packages, their tests, and the examples, as one set of source
-# directories.
+# The three packages, their tests, and the examples, as one set of
+# source directories.
 #
 # The gi-gtk4 and gi-gdk4 packages are copies of gi-gtk and gi-gdk under
 # other names, and two packages holding a module called GI.Gtk make
@@ -15,5 +15,7 @@ cradle:
       - gi-gdk4
       - -igi-gtk4-declarative/src
       - -igi-gtk4-declarative-app-simple/src
+      - -igi-gtk4-declarative-adwaita/src
       - -igi-gtk4-declarative/test
+      - -igi-gtk4-declarative-adwaita/test
       - -iexamples

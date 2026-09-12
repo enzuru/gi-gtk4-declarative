@@ -3,17 +3,17 @@
 The GTK 4 port is in place: the library, the examples, and the test
 suites are green. Two things are left. Cross items off as they land.
 
-## 1. Model-based views
+## 1. The last two model-based views
 
-`ListView`, `ColumnView`, `GridView`, and `DropDown` take a
-`GListModel` and a factory that makes a widget for each row, rather
-than child widgets. None of them are supported. `ListBox` and `FlowBox`
-are the supported widgets of that shape, and they hold real child
-widgets, so the patching model fits them.
+`GridView` and `DropDown` take a `GListModel` and a factory that makes
+a widget for each row, as `ListView` and `ColumnView` do, and neither
+is supported. The work is the same shape as the two that landed:
+`GI.Gtk.Declarative.ModelView.Internal` already holds the row
+machinery, so each is a module that makes the widget, sets the model,
+and says what its own parameters are. `MODEL-VIEWS.md` has the design.
 
-This one needs a design decision first: a declarative list over a model
-is a different thing from a declarative tree of widgets.
-`MODEL-VIEWS.md` makes that decision and names the six pieces of work.
+Nothing needs either one yet, which is why they are here rather than
+done.
 
 ## 2. The addresses still point at upstream
 
@@ -22,9 +22,9 @@ says where to find them still names owickstrom's project, because that
 is whose it is and this fork has nowhere of its own yet. Each of these
 needs a decision rather than work:
 
-- `homepage` and `bug-reports`, in both cabal files.
+- `homepage` and `bug-reports`, in all three cabal files.
 - `source-repository head`, in the library's cabal file.
-- `maintainer`, in both cabal files, which still reads the original
+- `maintainer`, in all three cabal files, which still reads the original
   author's name and address. The `author` and `copyright` fields should
   keep his name either way, which the license asks for.
 - The documentation link in `README.md`, and the site the documentation
@@ -40,6 +40,13 @@ checkout is still in a directory of the old name.
 
 ## Done
 
+- The libadwaita widgets. A third package,
+  `gi-gtk4-declarative-adwaita`, holding `IsBin` instances for the
+  single-child widgets (`Adw.ApplicationWindow` and the rest), the two
+  toolbar-view bar slots, and a declarative `AdwTabView` whose tabs are
+  matched by a key of the caller's choosing. Nineteen properties in
+  `gi-gtk4-declarative-adwaita/test`, and a
+  [documentation page](docs/src/widgets/libadwaita.md).
 - Housekeeping. The dead `Markup.hs` stub is gone, `hie.yaml` names the
   tests and hides the duplicate gi-gtk packages, the benchmark has a
   cabal stanza and a `make bench` target, and the documentation builds
