@@ -13,6 +13,7 @@ widgets, so the patching model fits them.
 
 This one needs a design decision first: a declarative list over a model
 is a different thing from a declarative tree of widgets.
+`MODEL-VIEWS.md` makes that decision and names the six pieces of work.
 
 ## 2. The addresses still point at upstream
 
