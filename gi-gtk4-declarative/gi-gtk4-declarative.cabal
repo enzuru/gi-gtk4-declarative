@@ -60,6 +60,8 @@ library
                       , GI.Gtk.Declarative.EventController
                       , GI.Gtk.Declarative.EventSource
                       , GI.Gtk.Declarative.MenuModel
+                      , GI.Gtk.Declarative.ModelView.Internal
+                      , GI.Gtk.Declarative.ModelView.ListView
                       , GI.Gtk.Declarative.Patch
                       , GI.Gtk.Declarative.References
                       , GI.Gtk.Declarative.SingleWidget
@@ -115,6 +117,7 @@ test-suite gi-gtk4-declarative-tests
                    , GI.Gtk.Declarative.CustomWidgetTest
                    , GI.Gtk.Declarative.EventControllerTest
                    , GI.Gtk.Declarative.MenuModelTest
+                   , GI.Gtk.Declarative.ModelViewTest
                    , GI.Gtk.Declarative.PatchTest
                    , GI.Gtk.Declarative.ReferenceTest
                    , GI.Gtk.Declarative.SlotTest

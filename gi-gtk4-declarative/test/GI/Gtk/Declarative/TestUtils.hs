@@ -68,6 +68,15 @@ setWindowChild window state = do
     then pure ()
     else Gtk.windowSetChild window (Just widget')
 
+-- | Every widget below this one, in tree order, this one included.
+descendants :: Gtk.IsWidget parent => parent -> IO [Gtk.Widget]
+descendants root = Gtk.toWidget root >>= go
+ where
+  go w = do
+    children <- childWidgets w
+    below    <- concat <$> traverse go (Vector.toList children)
+    pure (w : below)
+
 -- | The labels of a widget's own children, in order. Anything that is
 -- not a label or a button reads as the empty text.
 childLabels :: Gtk.IsWidget parent => parent -> IO (Vector Text)
