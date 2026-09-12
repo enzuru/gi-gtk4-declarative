@@ -1,5 +1,8 @@
 # To be run in a Nix shell, or otherwise customized (remove this line!)
---command="ghci -igi-gtk-declarative/src -igi-gtk-declarative-app-simple/src -iexamples -fobject-code examples/Main.hs"
+#
+# The heap cap keeps a session that has been reloading for hours from
+# growing without bound; see ghcid.sh.
+--command="ghci -igi-gtk-declarative/src -igi-gtk-declarative-app-simple/src -iexamples -fobject-code examples/Main.hs +RTS -M4g -RTS"
 --reload=gi-gtk-declarative
 --reload=gi-gtk-declarative-app-simple
 --reload=examples
