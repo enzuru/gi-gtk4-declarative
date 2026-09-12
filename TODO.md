@@ -1,8 +1,7 @@
 # What is left
 
-The GTK 4 port is in place: the library, the examples, and both test
-suites are green. This file lists what is not done yet, in the order I
-would do it. Cross items off as they land.
+The GTK 4 port is in place: the library, the examples, and the test
+suites are green. One thing is left. Cross items off as they land.
 
 ## 1. Model-based views
 
@@ -15,21 +14,12 @@ widgets, so the patching model fits them.
 This one needs a design decision first: a declarative list over a model
 is a different thing from a declarative tree of widgets.
 
-## 2. Housekeeping
-
-- `gi-gtk-declarative/src/GI/Gtk/Declarative/Markup.hs` is an empty
-  stub that no cabal file names. Delete it.
-- `docs/requirements.nix` and the files next to it still pin the 2021
-  MkDocs environment. Nothing builds the documentation now, and the
-  step that did was dropped from the CI workflow.
-- `gi-gtk-declarative/bench/Benchmark.hs` is ported to GTK 4 but has no
-  cabal stanza, so it never compiles. Either wire it up with criterion
-  or delete it.
-- `hie.yaml` does not name the test directories, so an editor loads the
-  library but not its tests.
-
 ## Done
 
+- Housekeeping. The dead `Markup.hs` stub is gone, `hie.yaml` names the
+  tests and hides the duplicate gi-gtk packages, the benchmark has a
+  cabal stanza and a `make bench` target, and the documentation builds
+  again from a Nix shell of its own rather than the 2021 MkDocs pin.
 - Widgets that point at another widget. `reference`, and `switcherStack`,
   `sidebarStack`, `keyCaptureWidget`, `mnemonicWidget`, and
   `defaultWidget` in `GI.Gtk.Declarative.References`. A widget is named

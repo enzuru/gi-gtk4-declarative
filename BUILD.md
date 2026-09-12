@@ -92,7 +92,23 @@ dividing the time, so the Makefile declares itself not parallel.
 
 ## Documentation
 
-The documentation is built with [MkDocs](https://www.mkdocs.org/).
+The documentation is built with [MkDocs](https://www.mkdocs.org/), which
+has a Nix shell of its own, since it needs Python rather than GHC:
+
+```
+nix develop .#docs --command make docs
+```
+
+## Benchmark
+
+There is a benchmark for the patching, which needs a display:
+
+```
+make bench
+```
+
+It measures rather than checks, and takes minutes rather than seconds,
+so `make check` leaves it alone.
 
 ## Examples
 

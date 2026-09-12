@@ -32,3 +32,5 @@ jobs:
           export CABAL_DIR="$RUNNER_TEMP/cabal"
           nix develop --command cabal build all
           nix develop --command xvfb-run -s "-screen 0 1280x1024x24" cabal test all
+      - name: 'Build the documentation'
+        run: nix develop .#docs --command make docs

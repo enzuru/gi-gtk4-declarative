@@ -55,7 +55,7 @@ instance IsContainer Gtk.CenterBox Widget where
   removeChild box widget' = do
     start  <- Gtk.centerBoxGetStartWidget box
     center <- Gtk.centerBoxGetCenterWidget box
-    let slot | start == Just widget'  = 0
-             | center == Just widget' = 1
-             | otherwise              = 2
-    setSlot box slot (Nothing :: Maybe Gtk.Widget)
+    let position | start == Just widget'  = 0
+                 | center == Just widget' = 1
+                 | otherwise              = 2
+    setSlot box position (Nothing :: Maybe Gtk.Widget)

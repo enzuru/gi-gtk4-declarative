@@ -11,6 +11,7 @@ BUILD := .build
 LIB      := gi-gtk-declarative/src
 APP      := gi-gtk-declarative-app-simple/src
 TEST     := gi-gtk-declarative/test
+BENCH    := gi-gtk-declarative/bench
 APPTEST  := gi-gtk-declarative-app-simple/test
 EXAMPLES := examples
 
@@ -46,7 +47,7 @@ SOURCES := $(shell find $(LIB) $(APP) -name '*.hs')
 # but GTK still refuses to start without a display.
 XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 
-.PHONY: all build examples check check-lib check-app check-input clean
+.PHONY: all build examples check check-lib check-app check-input bench docs clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
 # interface, so `make -j` multiplies the memory rather than dividing the
@@ -105,6 +106,21 @@ $(BUILD)/input-test: $(SOURCES) $(TEST)/InputApp.hs
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded -main-is InputApp.main \
 	  -outputdir $(BUILD)/input-test-objects -o $@ $(TEST)/InputApp.hs $(GHC_RTS)
+
+# How long patching takes. Not part of `make check`: it measures rather
+# than checks, and it takes minutes rather than seconds.
+bench: $(BUILD)/bench
+	GDK_BACKEND=x11 GSK_RENDERER=cairo $(XVFB) $(BUILD)/bench
+
+$(BUILD)/bench: $(SOURCES) $(BENCH)/Benchmark.hs
+	@mkdir -p $(BUILD)
+	ghc -i$(LIB) -i$(BENCH) $(WARNINGS) $(PACKAGES) -threaded \
+	  -outputdir $(BUILD)/bench-objects -o $@ $(BENCH)/Benchmark.hs $(GHC_RTS)
+
+# The documentation site. This one needs the docs shell, which has
+# MkDocs in it rather than GHC: `nix develop .#docs`.
+docs:
+	cd docs && mkdocs build
 
 clean:
 	rm -rf $(BUILD)
