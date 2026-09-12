@@ -33,23 +33,23 @@ executable example
                       , Stack
                       , Notebook
                       , Paned
-  build-depends:        base >=4.10 && <5
-                      , async
-                      , bytestring
-                      , gi-gobject
-                      , gi-glib
-                      , gi-gtk >=4 && <5
-                      , gi-gio
-                      , gi-gtk-declarative
-                      , gi-gtk-declarative-app-simple
-                      , gi-gdk
-                      , haskell-gi
-                      , haskell-gi-base
-                      , pipes
-                      , pipes-concurrency
-                      , stm
-                      , pipes-extras
-                      , text
-                      , vector
+  build-depends:        base                          >=4.10 && <5
+                      , async                         >=2.2  && <2.3
+                      , bytestring                    >=0.10 && <0.13
+                      , gi-gobject                    >=2    && <3
+                      , gi-glib                       >=2    && <3
+                      , gi-gtk                        >=4    && <5
+                      , gi-gio                        >=2    && <3
+                      , gi-gtk-declarative            >=0.8  && <0.9
+                      , gi-gtk-declarative-app-simple >=0.8  && <0.9
+                      , gi-gdk                        >=4    && <5
+                      , haskell-gi                    >=0.26 && <0.27
+                      , haskell-gi-base               >=0.26 && <0.27
+                      , pipes                         >=4    && <5
+                      , pipes-concurrency             >=2    && <3
+                      , stm                           >=2.5  && <2.6
+                      , pipes-extras                  >=1    && <2
+                      , text                          >=1.2  && <2.2
+                      , vector                        >=0.12 && <0.14
   default-language:     Haskell2010
   ghc-options:          -O2 -Wall -threaded

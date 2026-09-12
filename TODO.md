@@ -23,14 +23,7 @@ Neither can be written as an attribute today, because an attribute
 takes a value, not a declarative widget. `CustomWidget` is the only way
 to reach them now.
 
-## 3. The cabal build path
-
-Everything here is built by calling GHC directly, through the Makefile.
-`cabal build all` and `cabal test all` have never run. The module lists
-in the cabal files do match the files on disk, but the dependency
-bounds are unproven.
-
-## 4. Housekeeping
+## 3. Housekeeping
 
 - `gi-gtk-declarative/src/GI/Gtk/Declarative/Markup.hs` is an empty
   stub that no cabal file names. Delete it.
@@ -45,6 +38,11 @@ bounds are unproven.
 
 ## Done
 
+- The cabal build path. `cabal build all` and `cabal test all` both run,
+  and both test suites pass through them. Four upper bounds were wrong
+  and excluded what is installed: `containers`, `data-default-class`,
+  `haskell-gi`, and `haskell-gi-base`. The bounds `cabal check` asked
+  for are in place.
 - Event controllers. `onController` and `onControllerM` add a controller
   to a widget for as long as the widget is subscribed to, and
   `GI.Gtk.Declarative.EventController` names the common ones, from

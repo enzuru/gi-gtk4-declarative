@@ -18,6 +18,13 @@ EXAMPLES := examples
 # rather than building against the newer default and finding out later.
 WARNINGS := -Wall -XHaskell2010
 
+# Two packages in the dev shell hold a module called GI.Gtk: gi-gtk,
+# which is the one the cabal files name, and gi-gtk4, a copy of it under
+# another name that comes along as a dependency. Hiding the copy is what
+# makes an import of GI.Gtk unambiguous when GHC is called directly.
+# Cabal does not need this, because it names every package it passes.
+PACKAGES := -hide-package gi-gtk4 -hide-package gi-gdk4
+
 # Settings for GHC's own runtime, applied to every compiler call below.
 #
 # -M caps the heap. A compile that runs away then dies with a heap
@@ -52,7 +59,7 @@ all: build
 # the fast gate while working.
 build:
 	@mkdir -p $(BUILD)
-	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) \
+	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) $(PACKAGES) \
 	  -outputdir $(BUILD)/objects \
 	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs \
 	  $(GHC_RTS)
@@ -61,7 +68,7 @@ build:
 # usable, and a GTK 4 port that does not compile against them is not done.
 examples:
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(EXAMPLES) $(WARNINGS) -threaded \
+	ghc -i$(LIB) -i$(APP) -i$(EXAMPLES) $(WARNINGS) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
 	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
@@ -74,7 +81,7 @@ check-lib: $(BUILD)/tests
 
 $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/Declarative/*.hs)
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(TEST) $(WARNINGS) -threaded \
+	ghc -i$(LIB) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/test-objects -o $@ $(TEST)/Main.hs $(GHC_RTS)
 
 # The application loop: inputs, exits, and exceptions.
@@ -83,7 +90,7 @@ check-app: $(BUILD)/app-tests
 
 $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) -threaded \
+	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/app-test-objects -o $@ $(APPTEST)/Main.hs $(GHC_RTS)
 
 # Keys and clicks, driven with real X11 input.
@@ -96,7 +103,7 @@ check-input: $(BUILD)/input-test
 
 $(BUILD)/input-test: $(SOURCES) $(TEST)/InputApp.hs
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) -threaded -main-is InputApp.main \
+	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded -main-is InputApp.main \
 	  -outputdir $(BUILD)/input-test-objects -o $@ $(TEST)/InputApp.hs $(GHC_RTS)
 
 clean:
