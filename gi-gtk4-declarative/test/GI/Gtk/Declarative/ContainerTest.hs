@@ -160,6 +160,23 @@ prop_list_box_rows_are_patched = once $ do
     []
     (Vector.fromList [ bin Gtk.ListBoxRow [] (label t) | t <- ts ])
 
+-- | A list box takes a child that is not a row, which GTK wraps in one.
+-- What matters is the other end: removing such a child has to take the
+-- wrapper with it, or the list keeps rows that show nothing.
+prop_list_box_takes_widgets_that_are_not_rows = once $ do
+  (labels, rowCount) <- evalIO $ renderAll
+    [plainListBox ["a", "b", "c"], plainListBox ["a", "b"]]
+    (\w -> do
+      labels'   <- nestedChildLabels w
+      children' <- childWidgets w
+      pure (labels', length children')
+    )
+  labels === ["a", "b"]
+  rowCount === 2
+ where
+  plainListBox ts =
+    container Gtk.ListBox [] (Vector.fromList [ label t | t <- ts ])
+
 -- * FlowBox
 
 prop_flow_box_children_are_patched = once $ do

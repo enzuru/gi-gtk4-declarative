@@ -102,20 +102,20 @@ container Grid []
 
 ## ListBox and FlowBox
 
-The collection of child widgets used with `ListBox` is of type `[Bin
-ListBoxRow event]`, where `ListBoxRow` is the regular constructor
-defined in the [gi-gtk][] package. Instead of accepting any `[Widget
-event]`, the type constrains its usage to only accept proper
-`ListBoxRow` widgets as children.
+A `ListBox` takes any widget as a child:
 
 ``` haskell
 container ListBox []
   [ bin ListBoxRow [] (widget Button [])
-  , bin ListBoxRow [] (widget CheckButton [])
+  , widget Adw.ActionRow [#title := "A row from somewhere else"]
   ]
 ```
 
-`FlowBox` works the same way, with `FlowBoxChild` bins as children.
+Writing the row out with `bin ListBoxRow` is what you want when the row
+itself needs attributes. A child that is not a `ListBoxRow` is put in
+one for you, so a row type from another library works here too.
+
+`FlowBox` is stricter: its children are `FlowBoxChild` bins.
 
 ``` haskell
 container FlowBox []
