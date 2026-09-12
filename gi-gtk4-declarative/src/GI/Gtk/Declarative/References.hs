@@ -107,7 +107,7 @@ asStack (Just widget') = do
     Nothing -> do
       name <- Gtk.widgetGetName widget'
       GLib.logDefaultHandler
-        (Just "gi-gtk-declarative")
+        (Just "gi-gtk4-declarative")
         [GLib.LogLevelFlagsLevelWarning]
         (Just ("The widget named " <> name <> " is not a stack."))
         nullPtr

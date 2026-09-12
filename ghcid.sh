@@ -11,7 +11,7 @@
 # gi-gtk bindings takes about 520 MiB, so 4 GiB is room to work in.
 
 ghcid \
-  -c 'ghci -igi-gtk-declarative/src -igi-gtk-declarative-app-simple/src -iexamples examples/Main.hs +RTS -M4g -RTS' \
-  --reload=gi-gtk-declarative \
-  --reload=gi-gtk-declarative-app-simple \
+  -c 'ghci -igi-gtk4-declarative/src -igi-gtk4-declarative-app-simple/src -iexamples examples/Main.hs +RTS -M4g -RTS' \
+  --reload=gi-gtk4-declarative \
+  --reload=gi-gtk4-declarative-app-simple \
   --reload=examples

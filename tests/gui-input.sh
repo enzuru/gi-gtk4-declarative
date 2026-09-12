@@ -12,7 +12,7 @@
 set -u
 
 binary=${1:?usage: gui-input.sh <input-test-binary>}
-title=gi-gtk-declarative-input-test
+title=gi-gtk4-declarative-input-test
 
 # A nested X server has no GL worth speaking of, and without these the
 # window never appears at all.

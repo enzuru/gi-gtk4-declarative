@@ -106,7 +106,7 @@ addController widget' newController signal callback = do
 controllerName :: Gtk.IsEventController controller => controller -> IO Text
 controllerName controller =
   withManagedPtr controller
-    $ \ptr -> pure ("gi-gtk-declarative-" <> Text.pack (show ptr))
+    $ \ptr -> pure ("gi-gtk4-declarative-" <> Text.pack (show ptr))
 
 -- | Disconnect a controller's handler and take the controller off the
 -- widget again. The controller is looked up on the widget rather than
@@ -210,7 +210,7 @@ resolveReferences widget' attributes = for_ attributes $ \attribute ->
         target <- findNamed widget' name
         case target of
           Nothing -> GLib.logDefaultHandler
-            (Just "gi-gtk-declarative")
+            (Just "gi-gtk4-declarative")
             [GLib.LogLevelFlagsLevelWarning]
             (Just ("There is no widget named " <> name <> " to point at."))
             nullPtr

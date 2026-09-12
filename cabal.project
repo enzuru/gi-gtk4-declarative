@@ -1,4 +1,4 @@
 packages:
-  gi-gtk-declarative
-  gi-gtk-declarative-app-simple
+  gi-gtk4-declarative
+  gi-gtk4-declarative-app-simple
   examples

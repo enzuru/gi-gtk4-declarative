@@ -1,13 +1,13 @@
 <div align="center">
-  <h1>gi-gtk-declarative</h1>
+  <h1>gi-gtk4-declarative</h1>
   <p>Declarative GTK 4 programming in Haskell</p>
   <p>
-    <a href="https://hackage.haskell.org/package/gi-gtk-declarative"><img src="https://img.shields.io/hackage/v/gi-gtk-declarative.svg?style=flat" alt="Hackage"></a>
-    <a href="https://hackage.haskell.org/package/gi-gtk-declarative-app-simple"><img src="https://img.shields.io/hackage/v/gi-gtk-declarative-app-simple.svg?style=flat" alt="Hackage"></a>
-    <a href="https://github.com/owickstrom/gi-gtk-declarative/actions"><img src="https://github.com/owickstrom/gi-gtk-declarative/workflows/CI/badge.svg?branch=master" alt="Build Status"></a>
+    A fork of <a href="https://github.com/owickstrom/gi-gtk-declarative">gi-gtk-declarative</a>,
+    which targets GTK 3. The module names are the same.
   </p>
   <p>
     <a href="https://owickstrom.github.io/gi-gtk-declarative/">Documentation</a>
+    (the upstream site, which describes the same API)
   </p>
 </div>
 
@@ -34,4 +34,4 @@ instructions](BUILD.md).
 
 Copyright 2018 Ⓒ Oskar Wickström
 
-[Mozilla Public License Version 2.0](gi-gtk-declarative/LICENSE)
+[Mozilla Public License Version 2.0](gi-gtk4-declarative/LICENSE)

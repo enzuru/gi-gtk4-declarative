@@ -85,7 +85,7 @@ data Panes child = Panes child child
 
 tooManyPanes :: Text -> IO ()
 tooManyPanes caller = GLib.logDefaultHandler
-  (Just "gi-gtk-declarative")
+  (Just "gi-gtk4-declarative")
   [GLib.LogLevelFlagsLevelWarning]
   (Just
     (caller

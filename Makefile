@@ -1,4 +1,4 @@
-# gi-gtk-declarative -- build the library, the examples, and the tests.
+# gi-gtk4-declarative -- build the library, the examples, and the tests.
 #
 # Everything here assumes you are inside `nix develop`, which supplies
 # GHC with the gi-gtk 4 bindings and the GTK libraries they load.
@@ -8,11 +8,11 @@
 
 BUILD := .build
 
-LIB      := gi-gtk-declarative/src
-APP      := gi-gtk-declarative-app-simple/src
-TEST     := gi-gtk-declarative/test
-BENCH    := gi-gtk-declarative/bench
-APPTEST  := gi-gtk-declarative-app-simple/test
+LIB      := gi-gtk4-declarative/src
+APP      := gi-gtk4-declarative-app-simple/src
+TEST     := gi-gtk4-declarative/test
+BENCH    := gi-gtk4-declarative/bench
+APPTEST  := gi-gtk4-declarative-app-simple/test
 EXAMPLES := examples
 
 # The cabal files say Haskell2010, so the direct GHC calls say it too,

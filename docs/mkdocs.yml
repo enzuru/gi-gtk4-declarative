@@ -1,6 +1,6 @@
-site_name: gi-gtk-declarative
+site_name: gi-gtk4-declarative
 site_url: https://owickstrom.github.io/gi-gtk-declarative/
-site_description: 'Documentation for the gi-gtk-declarative package.'
+site_description: 'Documentation for the gi-gtk4-declarative package.'
 site_author: 'Oskar Wickström'
 repo_url: https://github.com/owickstrom/gi-gtk-declarative/
 edit_uri: edit/master/docs/src

@@ -48,6 +48,6 @@ main =
             hPutStrLn stderr ("No example available with name: " <> example)
         _ -> hPutStrLn
           stderr
-          (  "Usage: gi-gtk-declarative-example NAME\n\nWhere NAME is any of:\n"
+          (  "Usage: gi-gtk4-declarative-example NAME\n\nWhere NAME is any of:\n"
           <> unlines (map (("  " <>) . fst) examples)
           )

@@ -1,9 +1,9 @@
 name:                 examples
 version:              0.8.0
-synopsis:             Examples of using gi-gtk-declarative and gi-gtk-declarative-app-simple.
-description:          Examples showcasing the use of gi-gtk-declarative and
-                      gi-gtk-declarative-app-simple in a multitude of ways. These try to cover
-                      commonly used widgets and the special features of gi-gtk-declarative atop
+synopsis:             Examples of using gi-gtk4-declarative and gi-gtk4-declarative-app-simple.
+description:          Examples showcasing the use of gi-gtk4-declarative and
+                      gi-gtk4-declarative-app-simple in a multitude of ways. These try to cover
+                      commonly used widgets and the special features of gi-gtk4-declarative atop
                       the regular GTK+ bindings (gi-gtk).
 license:              MPL-2.0
 license-file:         LICENSE
@@ -40,8 +40,8 @@ executable example
                       , gi-glib                       >=2    && <3
                       , gi-gtk                        >=4    && <5
                       , gi-gio                        >=2    && <3
-                      , gi-gtk-declarative            >=0.8  && <0.9
-                      , gi-gtk-declarative-app-simple >=0.8  && <0.9
+                      , gi-gtk4-declarative            >=0.8  && <0.9
+                      , gi-gtk4-declarative-app-simple >=0.8  && <0.9
                       , gi-gdk                        >=4    && <5
                       , haskell-gi                    >=0.26 && <0.27
                       , haskell-gi-base               >=0.26 && <0.27

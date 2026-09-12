@@ -31,7 +31,7 @@ view' :: Text -> AppView Window Event
 view' shown =
   bin
       Window
-      [ #title := "gi-gtk-declarative-input-test"
+      [ #title := "gi-gtk4-declarative-input-test"
       , on #closeRequest (True, Closed)
       , #widthRequest := 300
       , #heightRequest := 200

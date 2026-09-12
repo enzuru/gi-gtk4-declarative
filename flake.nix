@@ -1,5 +1,5 @@
 {
-  description = "gi-gtk-declarative - declarative GTK4 programming in Haskell";
+  description = "gi-gtk4-declarative - declarative GTK4 programming in Haskell";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -61,7 +61,7 @@
 
             shellHook = ''
               export XDG_DATA_DIRS="${pkgs.gtk4}/share/gsettings-schemas/${pkgs.gtk4.name}:${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}:${pkgs.adwaita-icon-theme}/share:${pkgs.hicolor-icon-theme}/share:${pkgs.gtk4}/share:$XDG_DATA_DIRS"
-              echo "gi-gtk-declarative dev shell -- run 'make check'"
+              echo "gi-gtk4-declarative dev shell -- run 'make check'"
             '';
           };
         });

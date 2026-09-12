@@ -27,7 +27,7 @@ counterButton =
 
 Some signals in GTK carry extra information, supplied as extra
 parameters to signal callbacks. This is supported in
-gi-gtk-declarative as well, by passing those parameters to the event
+gi-gtk4-declarative as well, by passing those parameters to the event
 handler function.
 
 ## Event Handlers with Arguments
@@ -40,7 +40,7 @@ alias:
 type WidgetDirectionChangedCallback = TextDirection -> IO Bool
 ```
 
-In gi-gtk-declarative, when using a pure event handler, the type of
+In gi-gtk4-declarative, when using a pure event handler, the type of
 the event handler will be `TextDirection -> event`, where `event` is
 the event data type of the widget. In the following example we declare
 a button and emit an event when it's text direction changes. We map
@@ -126,7 +126,7 @@ propagate the event further or not. One example is
 type WidgetFocusCallback = DirectionType -> IO Bool
 ```
 
-In gi-gtk-declarative, the return value type of the event handler will
+In gi-gtk4-declarative, the return value type of the event handler will
 be a tuple of the callback return value and the event to emit. In the
 case of the `focus` signal, a pure event handler type would be
 `DirectionType -> (Bool, event)`. As described above, impure event

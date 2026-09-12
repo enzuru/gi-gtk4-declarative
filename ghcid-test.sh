@@ -10,9 +10,9 @@
 export HEDGEHOG_COLOR=1
 
 ghcid \
-  -c 'ghci -igi-gtk-declarative/src -igi-gtk-declarative/test +RTS -M4g -RTS' \
+  -c 'ghci -igi-gtk4-declarative/src -igi-gtk4-declarative/test +RTS -M4g -RTS' \
   --test ':main' \
   --color=always \
-  --reload=gi-gtk-declarative \
-  --restart=gi-gtk-declarative/test \
+  --reload=gi-gtk4-declarative \
+  --restart=gi-gtk4-declarative/test \
   Main
