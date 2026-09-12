@@ -75,6 +75,21 @@ activatableRows items = listView
     , onActivated = Just Activated
     }
 
+-- | Rows whose widget is a label or a button, depending on the item,
+-- so that changing an item replaces the row's widget rather than
+-- patching it.
+mixedRows :: Vector Bool -> Widget Event
+mixedRows items = listView
+  []
+  (defaultListViewParams
+      (\isLabel -> if isLabel
+        then widget Gtk.Label [#label := ("a label" :: Text)]
+        else widget Gtk.ToggleButton [#label := ("a button" :: Text)]
+      )
+    )
+    { rows = items
+    }
+
 selectableRows :: Vector Text -> Maybe Word -> Widget Event
 selectableRows items chosen = listView
   []
@@ -138,6 +153,20 @@ prop_a_changed_item_reaches_its_row = withTests 1 . property $ do
     [labelRows ["one", "two"], labelRows ["one", "CHANGED"]]
     rowLabels
   labels === ["one", "CHANGED"]
+
+-- | A row whose widget has to be replaced gets the new one. The number
+-- of rows is the same, so GTK never binds the row again, and the view
+-- has to put the new widget in the cell itself.
+prop_a_replaced_row_widget_is_put_in_its_cell = withTests 1 . property $ do
+  (labels, buttons) <- evalIO $ renderViews
+    [mixedRows [True], mixedRows [False]]
+    (\view -> do
+      labels'  <- rowLabels view
+      buttons' <- rowButtons view
+      pure (labels', length buttons')
+    )
+  labels === ["a button"]
+  buttons === 1
 
 prop_rows_are_added_and_taken_away = withTests 1 . property $ do
   (grown, shrunk) <- evalIO $ do

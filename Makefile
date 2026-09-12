@@ -58,11 +58,17 @@ all: build
 
 # Typecheck the library and app-simple without producing code, which is
 # the fast gate while working.
+#
+# The model views are named here as well. GHC follows imports, and the
+# umbrella module does not re-export them, so they would go unchecked
+# until the test binary was built.
 build:
 	@mkdir -p $(BUILD)
 	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) $(PACKAGES) \
 	  -outputdir $(BUILD)/objects \
 	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs \
+	  $(LIB)/GI/Gtk/Declarative/ModelView/ListView.hs \
+	  $(LIB)/GI/Gtk/Declarative/ModelView/ColumnView.hs \
 	  $(GHC_RTS)
 
 # The examples are part of the build: they are what says the library is
