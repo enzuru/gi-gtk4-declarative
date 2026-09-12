@@ -59,6 +59,8 @@ import           GI.Gtk.Declarative.Container.Stack
                                                 ( )
 import           GI.Gtk.Declarative.CustomWidget
                                                as Export
+import           GI.Gtk.Declarative.EventController
+                                               as Export
 import           GI.Gtk.Declarative.MenuModel  as Export
 import           GI.Gtk.Declarative.Patch      as Export
 import           GI.Gtk.Declarative.SingleWidget

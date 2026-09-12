@@ -34,6 +34,19 @@ Xvfb:
 xvfb-run cabal test all
 ```
 
+## Running a GTK 4 program without a screen
+
+A GTK 4 program under Xvfb needs two settings, or it starts, draws
+nothing, and never puts a window on the display:
+
+```
+export GDK_BACKEND=x11
+export GSK_RENDERER=cairo
+```
+
+A nested X server has no GL worth speaking of, which is what the second
+one is about. The test suites set both for themselves.
+
 ## Memory
 
 Every compile here loads the whole gi-gtk 4 interface, which is large.

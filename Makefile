@@ -39,7 +39,7 @@ SOURCES := $(shell find $(LIB) $(APP) -name '*.hs')
 # but GTK still refuses to start without a display.
 XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 
-.PHONY: all build examples check check-lib check-app clean
+.PHONY: all build examples check check-lib check-app check-input clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
 # interface, so `make -j` multiplies the memory rather than dividing the
@@ -65,7 +65,7 @@ examples:
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
 	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
-check: check-lib check-app
+check: check-lib check-app check-input
 
 # The library's own suite: patching, custom widgets, every container,
 # and the menus.
@@ -85,6 +85,19 @@ $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) -threaded \
 	  -outputdir $(BUILD)/app-test-objects -o $@ $(APPTEST)/Main.hs $(GHC_RTS)
+
+# Keys and clicks, driven with real X11 input.
+#
+# GTK 4 reports these through event controllers, and nothing can make
+# one happen from code, so this test presses a key and clicks a button
+# for real and reads back what the application received.
+check-input: $(BUILD)/input-test
+	$(XVFB) tests/gui-input.sh $(BUILD)/input-test
+
+$(BUILD)/input-test: $(SOURCES) $(TEST)/InputApp.hs
+	@mkdir -p $(BUILD)
+	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) -threaded -main-is InputApp.main \
+	  -outputdir $(BUILD)/input-test-objects -o $@ $(TEST)/InputApp.hs $(GHC_RTS)
 
 clean:
 	rm -rf $(BUILD)

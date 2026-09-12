@@ -6,6 +6,7 @@ import           System.IO
 
 import qualified AddBoxes
 import qualified CSS
+import qualified Controllers
 import qualified CustomWidget
 import qualified Dialog
 import qualified Exit
@@ -25,6 +26,7 @@ main =
   let examples =
           [ ("AddBoxes"         , AddBoxes.main)
           , ("CustomWidget"     , CustomWidget.main)
+          , ("Controllers"      , Controllers.main)
           , ("FileChooser"      , FileChooser.main)
           , ("Hello"            , Hello.main)
           , ("ListBox"          , ListBox.main)
