@@ -47,6 +47,11 @@ SOURCES := $(shell find $(LIB) $(APP) -name '*.hs')
 # but GTK still refuses to start without a display.
 XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 
+# A GtkApplication registers itself on the session bus, and answers
+# nothing at all when there is none, so the suite that makes one runs
+# under a bus of its own.
+DBUS := dbus-run-session --
+
 .PHONY: all build examples check check-lib check-app check-input bench docs clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
@@ -93,7 +98,7 @@ $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/De
 
 # The application loop: inputs, exits, and exceptions.
 check-app: $(BUILD)/app-tests
-	$(XVFB) $(BUILD)/app-tests
+	GTK_A11Y=none $(XVFB) $(DBUS) $(BUILD)/app-tests
 
 $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)

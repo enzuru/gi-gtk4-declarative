@@ -16,6 +16,8 @@ module GI.Gtk.Declarative.App.Simple
   , Transition(..)
   , run
   , runLoop
+  , runInApplication
+  , startInApplication
   )
 where
 
@@ -27,8 +29,11 @@ import           Control.Exception              ( SomeException,
                                                   finally,
                                                   throwIO)
 import           Control.Monad
+import           Data.Foldable                  ( for_ )
+import           Data.IORef
 import           Data.Typeable
 import qualified GI.GLib                       as GLib
+import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
@@ -107,30 +112,103 @@ runLoop
   :: (IsBin window, Gtk.IsWindow window)
   => App window state event
   -> IO state
-runLoop App {..} = do
+runLoop = runLoopIn Nothing
+
+-- | Run an 'App' inside a 'Gtk.Application' somebody else started.
+--
+-- A program that needs an application of its own, for its identifier,
+-- its actions, its accelerators, or the file named on its command line,
+-- cannot use 'run', which makes a main loop of its own, and cannot use
+-- 'runLoop', which never tells the application about its window. An
+-- application holding no window quits as soon as @activate@ returns,
+-- so the window has to be registered.
+--
+-- This registers the window it makes, registers the new one when a
+-- patch replaces it, and takes the window down when the loop ends, so
+-- that an application holding no other window quits on its own. It
+-- neither initializes GTK nor makes a main loop: the application does
+-- both.
+--
+-- It loops until the application exits, so it cannot be called from
+-- the @activate@ handler directly. Use 'startInApplication', which
+-- starts it in a thread of its own and holds the application while it
+-- gets going.
+runInApplication
+  :: (IsBin window, Gtk.IsWindow window, Gtk.IsApplication app)
+  => app
+  -> App window state event
+  -> IO state
+runInApplication application app = do
+  application' <- Gtk.toApplication application
+  runLoopIn (Just application') app
+
+-- | Start an 'App' from an application's @activate@ handler.
+--
+-- @
+-- main :: IO ()
+-- main = do
+--   application <- Gtk.applicationNew (Just "com.example.App") []
+--   _ <- Gtk.on application #activate (startInApplication application app)
+--   void $ Gio.applicationRun application Nothing
+-- @
+--
+-- An application quits as soon as @activate@ returns holding no window,
+-- and the window here is built on the main loop a moment later, so this
+-- holds the application until the loop ends. Without that hold the
+-- application would be gone before its window arrived.
+startInApplication
+  :: (IsBin window, Gtk.IsWindow window, Gtk.IsApplication app)
+  => app
+  -> App window state event
+  -> IO ()
+startInApplication application app = do
+  application' <- Gtk.toApplication application
+  Gio.applicationHold application'
+  void $ Async.async $ runInApplication application' app `finally` runUI
+    (Gio.applicationRelease application')
+
+-- | The body of 'runLoop' and of 'runInApplication'. With an
+-- application, the window is registered with it and taken down at the
+-- end; without one, neither happens.
+runLoopIn
+  :: (IsBin window, Gtk.IsWindow window)
+  => Maybe Gtk.Application
+  -> App window state event
+  -> IO state
+runLoopIn application App {..} = do
   let firstMarkup = view initialState
 
   events                     <- newChan
   (firstState, subscription) <- do
     firstState <- runUI (create firstMarkup)
-    runUI (presentWindow firstState)
+    runUI (addWindow application firstState >> presentWindow firstState)
     sub <- subscribe firstMarkup firstState (publishEvent events)
     return (firstState, sub)
 
-  Async.withAsync (runProducers events inputs) $ \inputs' -> do
-    Async.withAsync (wrappedLoop firstState firstMarkup events subscription) $ \loop' -> do
-      Async.waitEither inputs' loop' >>= \case
-        Left _      -> Async.wait loop'
-        Right state -> state <$ Async.uninterruptibleCancel inputs'
+  -- What the loop is showing now, so that the window can be taken down
+  -- at the end. The loop itself answers with the last model.
+  showing <- newIORef firstState
+
+  let core = Async.withAsync (runProducers events inputs) $ \inputs' ->
+        Async.withAsync
+            (wrappedLoop showing firstState firstMarkup events subscription)
+          $ \loop' -> Async.waitEither inputs' loop' >>= \case
+              Left _      -> Async.wait loop'
+              Right state -> state <$ Async.uninterruptibleCancel inputs'
+
+  case application of
+    Nothing -> core
+    Just _  -> core
+      `finally` (runUI . destroyWindow =<< readIORef showing)
 
  where
-  wrappedLoop firstState firstMarkup events subscription =
-    loop firstState firstMarkup events subscription initialState
+  wrappedLoop showing firstState firstMarkup events subscription =
+    loop showing firstState firstMarkup events subscription initialState
       -- Catch exception of linked thread and reraise them without the
       -- async wrapping.
       `catch` (\(Async.ExceptionInLinkedThread _ e) -> throwIO e)
 
-  loop oldState oldMarkup events oldSubscription oldModel = do
+  loop showing oldState oldMarkup events oldSubscription oldModel = do
     event <- readChan events
     case update oldModel event of
       Transition newModel action -> do
@@ -146,6 +224,7 @@ runLoop App {..} = do
             destroyWindow oldState
             cancel oldSubscription
             newState <- createNew
+            addWindow application newState
             presentWindow newState
             sub <- subscribe newMarkup newState (publishEvent events)
             return (newState, sub)
@@ -164,8 +243,18 @@ runLoop App {..} = do
         -- catch.
         Async.link a
 
-        loop newState newMarkup events sub newModel
+        writeIORef showing newState
+        loop showing newState newMarkup events sub newModel
       Exit -> return oldModel
+
+-- | Tell the application about the window, so that it does not quit
+-- while the window is up.
+addWindow :: Maybe Gtk.Application -> SomeState -> IO ()
+addWindow Nothing     _     = pure ()
+addWindow (Just application) state = do
+  widget' <- someStateWidget state
+  window  <- Gtk.castTo Gtk.Window widget'
+  for_ window (Gtk.applicationAddWindow application)
 
 -- | Show the application's top-level window. GTK 4 widgets are visible
 -- by default, but a window still has to be presented.

@@ -85,3 +85,32 @@ and destroys it when the view is replaced by one of another type.
 
 [gi-gtk4-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
 [Pipes]: http://hackage.haskell.org/package/pipes
+
+## Inside an application of your own
+
+A program that needs a `GtkApplication`, for its application id, its
+actions, its accelerators, or the file named on its command line, cannot
+use `run`, which makes a main loop of its own. The application makes
+that loop, and initializes GTK, and the app goes inside it:
+
+``` haskell
+main :: IO ()
+main = do
+  application <- Gtk.applicationNew (Just "com.example.App") []
+  _ <- Gtk.on application #activate (startInApplication application app)
+  void $ Gio.applicationRun application Nothing
+```
+
+`startInApplication` registers the window with the application, so that
+the application does not quit while it is up, and takes the window down
+when the loop ends, so that an application holding no other window quits
+on its own.
+
+It also holds the application while the window is being built. An
+application quits as soon as `activate` returns holding no window, and
+the first window is built on the main loop a moment after `activate`
+returns, so without that hold the application would be gone before its
+window arrived.
+
+`runInApplication` is the loop itself, for a program that wants to place
+it in a thread of its own. It does not return until the app exits.
