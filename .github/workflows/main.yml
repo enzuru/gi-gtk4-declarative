@@ -17,3 +17,18 @@ jobs:
         run: nix develop --command make examples
       - name: 'Run the tests'
         run: nix develop --command make check
+      # The Makefile calls GHC directly, which says nothing about
+      # whether the cabal files are right. This step is what catches a
+      # dependency bound that excludes what is installed.
+      #
+      # The dev shell has every dependency in the compiler's package
+      # database, so cabal needs no Hackage index. CABAL_DIR points at a
+      # configuration with no remote repository, which is what keeps it
+      # from asking for one.
+      - name: 'Build and test with cabal'
+        run: |
+          mkdir -p "$RUNNER_TEMP/cabal"
+          printf 'jobs: 1\n' > "$RUNNER_TEMP/cabal/config"
+          export CABAL_DIR="$RUNNER_TEMP/cabal"
+          nix develop --command cabal build all
+          nix develop --command xvfb-run -s "-screen 0 1280x1024x24" cabal test all

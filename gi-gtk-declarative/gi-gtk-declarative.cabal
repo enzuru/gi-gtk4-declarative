@@ -62,20 +62,20 @@ library
                       , GI.Gtk.Declarative.Widget
                       , GI.Gtk.Declarative.Widget.Conversions
   build-depends:        base                   >=4.10 && <5
-                      , containers             >=0.6  && <0.7
-                      , data-default-class     >=0.1  && <0.2
+                      , containers             >=0.6  && <0.9
+                      , data-default-class     >=0.1  && <0.3
                       , gi-gobject             >=2    && <3
                       , gi-glib                >=2    && <3
                       , gi-gio                 >=2    && <3
                       , gi-gdk                 >=4    && <5
                       , gi-gtk                 >=4    && <5
-                      , haskell-gi             >=0.24 && <0.26
-                      , haskell-gi-base        >=0.24 && <0.26
+                      , haskell-gi             >=0.26 && <0.27
+                      , haskell-gi-base        >=0.26 && <0.27
                       , haskell-gi-overloading >=1.0  && <1.1
-                      , mtl
-                      , text
+                      , mtl                    >=2.2  && <2.4
+                      , text                   >=1.2  && <2.2
                       , unordered-containers   >=0.2  && <0.3
-                      , vector
+                      , vector                 >=0.12 && <0.14
 
   hs-source-dirs:       src
   default-language:     Haskell2010

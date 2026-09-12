@@ -34,6 +34,14 @@ Xvfb:
 xvfb-run cabal test all
 ```
 
+Inside `nix develop`, every dependency is already in the compiler's
+package database, so cabal resolves the build without a Hackage index.
+Two packages there hold a module called `GI.Gtk`: `gi-gtk`, which is the
+one the cabal files name, and `gi-gtk4`, a copy of it under another
+name. Cabal is unaffected, because it names each package it passes to
+the compiler. The Makefile hides the copy, because a call to GHC that
+does not name its packages sees both.
+
 ## Running a GTK 4 program without a screen
 
 A GTK 4 program under Xvfb needs two settings, or it starts, draws

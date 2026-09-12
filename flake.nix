@@ -16,15 +16,17 @@
         gobject-introspection
       ];
 
-      # nixpkgs' gi-gtk is the 4.x binding; gi-gtk3 is the old one.  The three
-      # packages here (library, app-simple, examples) and the test suites are
-      # built against this one set.
+      # nixpkgs' gi-gtk is the 4.x binding, which is the package the cabal
+      # files name; gi-gtk3 is the old one, and gi-gtk4 is a second copy of
+      # the same thing under another name.  The Makefile hides that copy,
+      # because two packages holding a module called GI.Gtk make every
+      # import of it ambiguous.
       haskellDeps = ps: with ps; [
         base containers data-default-class mtl text unordered-containers vector
         bytestring async stm safe-exceptions hedgehog hspec
         pipes pipes-concurrency pipes-extras
         haskell-gi haskell-gi-base haskell-gi-overloading
-        gi-glib gi-gobject gi-gio gi-gdk4 gi-gtk4 gi-gsk gi-pango gi-cairo
+        gi-glib gi-gobject gi-gio gi-gdk gi-gtk gi-gsk gi-pango gi-cairo
       ];
     in {
       devShells = forAll (pkgs:
