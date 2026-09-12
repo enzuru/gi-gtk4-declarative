@@ -13,7 +13,7 @@ cradle:
       - gi-gtk4
       - -hide-package
       - gi-gdk4
-      - -igi-gtk-declarative/src
-      - -igi-gtk-declarative-app-simple/src
-      - -igi-gtk-declarative/test
+      - -igi-gtk4-declarative/src
+      - -igi-gtk4-declarative-app-simple/src
+      - -igi-gtk4-declarative/test
       - -iexamples

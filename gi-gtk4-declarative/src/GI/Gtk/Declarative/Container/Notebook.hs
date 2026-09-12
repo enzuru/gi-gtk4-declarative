@@ -78,7 +78,7 @@ instance IsContainer Gtk.Notebook Widget where
     case pageI of
       Nothing -> do
         GLib.logDefaultHandler
-          (Just "gi-gtk-declarative")
+          (Just "gi-gtk4-declarative")
           [GLib.LogLevelFlagsLevelError]
           (Just
           $ "GI.Gtk.Declarative.Container.Notebook.replaceChild called with an index where there is no child: "

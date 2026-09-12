@@ -1,12 +1,16 @@
-name:                 gi-gtk-declarative
+name:                 gi-gtk4-declarative
 version:              0.8.0
-synopsis:             Declarative GTK+ programming in Haskell
-description:          A declarative programming model for GTK+ user
+synopsis:             Declarative GTK 4 programming in Haskell
+description:          A declarative programming model for GTK 4 user
                       interfaces, implementing support for various widgets
                       and generalized patching. This library aims to extend the
                       gi-gtk library as transparently as possible, and to be
                       a reusable library for multiple application architectures
                       and styles.
+
+                      This is a fork of
+                      [gi-gtk-declarative](https://hackage.haskell.org/package/gi-gtk-declarative),
+                      which targets GTK 3. The module names are the same.
 
                       See [the project website](https://owickstrom.github.io/gi-gtk-declarative/)
                       for user guides and more information.
@@ -83,7 +87,7 @@ library
   default-language:     Haskell2010
   ghc-options:          -Wall
 
-test-suite gi-gtk-declarative-tests
+test-suite gi-gtk4-declarative-tests
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test
   main-is:           Main.hs
@@ -96,7 +100,7 @@ test-suite gi-gtk-declarative-tests
                    , gi-gsk
                    , gi-gobject
                    , gi-gtk >=4 && <5
-                   , gi-gtk-declarative
+                   , gi-gtk4-declarative
                    , haskell-gi-base
                    , hedgehog >= 1 && < 2
                    , mtl
@@ -117,7 +121,7 @@ test-suite gi-gtk-declarative-tests
                    , GI.Gtk.Declarative.TestUtils
                    , GI.Gtk.Declarative.TestWidget
 
-benchmark gi-gtk-declarative-bench
+benchmark gi-gtk4-declarative-bench
   type:              exitcode-stdio-1.0
   hs-source-dirs:    bench
   main-is:           Benchmark.hs
@@ -125,7 +129,7 @@ benchmark gi-gtk-declarative-bench
                    , criterion  >= 1.5      && < 1.7
                    , gi-glib    >= 2        && < 3
                    , gi-gtk     >= 4        && < 5
-                   , gi-gtk-declarative
+                   , gi-gtk4-declarative
                    , text       >= 1.2      && < 2.2
                    , vector     >= 0.12     && < 0.14
   ghc-options:       -Wall -threaded

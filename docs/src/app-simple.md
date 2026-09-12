@@ -1,7 +1,7 @@
 # App.Simple
 
 The _App.Simple_ framework, provided by the
-[gi-gtk-declarative-app-simple][] package, build on gi-gtk-declarative
+[gi-gtk4-declarative-app-simple][] package, build on gi-gtk4-declarative
 to provide a simple application architecture. It's based on a state
 reducer, inspired by [PureScript's
 Pux](http://purescript-pux.org/). It also draws inspiration from with
@@ -83,5 +83,5 @@ The window type of an `App` must be a GTK window, such as `Gtk.Window`
 or `Gtk.ApplicationWindow`. The application presents it when it starts,
 and destroys it when the view is replaced by one of another type.
 
-[gi-gtk-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
+[gi-gtk4-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
 [Pipes]: http://hackage.haskell.org/package/pipes

@@ -6,7 +6,7 @@ missing functionality. If you do find something, or think that
 documentation could be better, please [submit an issue on
 GitHub](https://github.com/owickstrom/gi-gtk-declarative).
 
-If you want to help develop gi-gtk-declarative:
+If you want to help develop gi-gtk4-declarative:
 
 1. Look around the reported issues on GitHub if there's anything you
 can pick up.

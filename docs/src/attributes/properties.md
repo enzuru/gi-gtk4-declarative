@@ -10,7 +10,7 @@ the bottom of the Haddock page.
 
 ## Properties in the Attributes List
 
-In gi-gtk-declarative, the list passed to widgets is not a list of
+In gi-gtk4-declarative, the list passed to widgets is not a list of
 properties, but a list of _attributes_. The attributes list include
 property declarations, [events](events.md), and [CSS classes](css.md).
 To declare a property and a value in the attributes list, we use the

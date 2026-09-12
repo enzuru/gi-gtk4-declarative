@@ -84,7 +84,7 @@ save, and holds on to more after each reload. `ghcid.sh` and
 it too:
 
 ```
-ghci -igi-gtk-declarative/src +RTS -M4g -RTS
+ghci -igi-gtk4-declarative/src +RTS -M4g -RTS
 ```
 
 Run one compiler at a time. `make -j` multiplies the memory rather than
