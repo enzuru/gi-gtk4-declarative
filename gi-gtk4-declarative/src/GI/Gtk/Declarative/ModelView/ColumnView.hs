@@ -55,16 +55,25 @@ import           Data.Foldable                  ( for_ )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int32 )
 import           Data.IORef
+import           Data.Char                      ( isAlphaNum )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 import           Data.Typeable
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
+import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 
 import           GI.Gtk.Declarative.Attributes
 import           GI.Gtk.Declarative.Attributes.Collected
 import           GI.Gtk.Declarative.Attributes.Internal
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.MenuModel   ( MenuItem
+                                                , MenuShape
+                                                , buildMenuModel
+                                                , menuLeafEvents
+                                                , menuShapeOf
+                                                )
 import           GI.Gtk.Declarative.ModelView.Internal
 import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.State
@@ -84,6 +93,10 @@ data Column item event = Column
   -- ^ A width to set. Setting it on every render pins the column,
   -- which is not what you want if the user is allowed to resize it:
   -- give it once, or give what the user last left it at.
+  , columnHeaderMenu :: Vector (MenuItem event)
+  -- ^ A menu on the column's header, for what a person does to a whole
+  -- column: insert, remove, move. Empty for no menu. The items are the
+  -- declarative ones, so the events behind them arrive like any other.
   , renderCell       :: item -> Widget event
   , onResized        :: Maybe (Int32 -> event)
   -- ^ Emitted when the column's width changes, which is how an
@@ -101,6 +114,7 @@ column key title render = Column { columnKey        = key
                                  , columnExpand     = False
                                  , columnVisible    = True
                                  , columnFixedWidth = Nothing
+                                 , columnHeaderMenu = mempty
                                  , renderCell       = render
                                  , onResized        = Nothing
                                  }
@@ -140,8 +154,15 @@ data ColumnViewState item event = ColumnViewState
   }
 
 data ColumnRecord = ColumnRecord
-  { recordKey    :: Text
-  , recordColumn :: Gtk.ColumnViewColumn
+  { recordKey      :: Text
+  , recordColumn   :: Gtk.ColumnViewColumn
+  , recordDispatch :: IORef (Int -> IO ())
+  -- ^ Where the header menu's actions go. Rewritten on every render,
+  -- so that a menu whose shape has not changed still emits this
+  -- render's events.
+  , recordMenu     :: IORef [MenuShape]
+  -- ^ The shape the header menu was last built from. The model is
+  -- built again only when this changes.
   }
 
 -- | A declarative column view. As with a list view, the events the
@@ -319,18 +340,22 @@ patchColumns view state wanted = do
     case Vector.find ((== columnKey spec) . recordKey) inPlace of
       Just record -> do
         applyColumn spec (recordColumn record)
+        applyHeaderMenu view state record spec
         pure record
       Nothing -> do
-        made <- newColumn state spec
+        (made, dispatch) <- newColumn state spec
         Gtk.columnViewInsertColumn view (fromIntegral index) made
         applyColumn spec made
-        pure (ColumnRecord (columnKey spec) made)
+        record <- ColumnRecord (columnKey spec) made dispatch <$> newIORef []
+        applyHeaderMenu view state record spec
+        pure record
 
--- | A column, with a factory that renders this column's cells.
+-- | A column, with a factory that renders this column's cells, and the
+-- reference its header menu dispatches through.
 newColumn
   :: ColumnViewState item event
   -> Column item event
-  -> IO Gtk.ColumnViewColumn
+  -> IO (Gtk.ColumnViewColumn, IORef (Int -> IO ()))
 newColumn state spec = do
   factory <- Gtk.signalListItemFactoryNew
   let base = columnBase state
@@ -350,7 +375,8 @@ newColumn state spec = do
         sink  <- readIORef (viewSink base)
         sink (make width)
       _ -> pure ()
-  pure made
+  dispatch <- newIORef (const (pure ()))
+  pure (made, dispatch)
  where
   withCell action object = do
     cell    <- Gtk.unsafeCastTo Gtk.ColumnViewCell object
@@ -366,6 +392,49 @@ applyColumn spec made = do
   for_ (columnFixedWidth spec) $ \width -> do
     current <- Gtk.columnViewColumnGetFixedWidth made
     when (current /= width) (Gtk.columnViewColumnSetFixedWidth made width)
+
+-- | Put this column's header menu in place, and point its actions at
+-- this render's events.
+--
+-- The model and its actions are built again only when the shape of the
+-- menu changes, as they are for a menu bar. The dispatch is rewritten
+-- every time, so that a menu of the same shape still emits the events
+-- this render gave.
+applyHeaderMenu
+  :: Gtk.ColumnView
+  -> ColumnViewState item event
+  -> ColumnRecord
+  -> Column item event
+  -> IO ()
+applyHeaderMenu view state record spec = do
+  let items    = columnHeaderMenu spec
+      newShape = menuShapeOf items
+      prefix   = menuPrefix (columnKey spec)
+  oldShape <- readIORef (recordMenu record)
+  when (oldShape /= newShape) $ do
+    if Vector.null items
+      then do
+        Gtk.columnViewColumnSetHeaderMenu (recordColumn record)
+                                          (Nothing :: Maybe Gio.MenuModel)
+        Gtk.widgetInsertActionGroup view
+                                    prefix
+                                    (Nothing :: Maybe Gio.SimpleActionGroup)
+      else do
+        (model, group) <- buildMenuModel prefix (recordDispatch record) items
+        Gtk.widgetInsertActionGroup view prefix (Just group)
+        Gtk.columnViewColumnSetHeaderMenu (recordColumn record) (Just model)
+    writeIORef (recordMenu record) newShape
+  writeIORef (recordDispatch record) $ \position ->
+    for_ (menuLeafEvents items Vector.!? position) $ \event -> do
+      sink <- readIORef (viewSink (columnBase state))
+      sink event
+
+-- | The action prefix a column's header menu lives under. A key that
+-- is not a plain word is spelled with dashes, because an action prefix
+-- is a name rather than free text.
+menuPrefix :: Text -> Text
+menuPrefix key = "column-menu-" <> Text.map plain key
+  where plain c = if isAlphaNum c then c else '-'
 
 --
 -- The selection and the commands

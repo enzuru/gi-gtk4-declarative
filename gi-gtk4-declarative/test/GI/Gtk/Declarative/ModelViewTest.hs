@@ -44,7 +44,12 @@ import           GI.Gtk.Declarative.ModelView.ListView
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.TestUtils
 
-data Event = Toggled Word | Selected Word | Activated Word | Resized Int32
+data Event
+  = Toggled Word
+  | Selected Word
+  | Activated Word
+  | Resized Int32
+  | HeaderMenu Text
   deriving (Eq, Show)
 
 -- * Markup
@@ -335,6 +340,63 @@ prop_a_column_resize_emits = withTests 1 . property $ do
     runUI (cancel sub >> Gtk.windowDestroy window)
     atomically (flushTBQueue received)
   events === [Resized 200]
+
+-- | A column can carry a menu on its header, and the items of that
+-- menu emit like any other event in the library.
+prop_a_column_header_menu_emits = withTests 1 . property $ do
+  (found, events) <- evalIO (headerMenuEvents [withHeaderMenu "insert"])
+  found === True
+  events === [HeaderMenu "insert"]
+
+-- | The menu keeps its shape across the patch, so the model is not
+-- built again. The events behind it are still this render's.
+prop_a_patched_header_menu_emits_the_new_event = withTests 1 . property $ do
+  (found, events) <- evalIO
+    (headerMenuEvents [withHeaderMenu "insert", withHeaderMenu "remove"])
+  found === True
+  events === [HeaderMenu "remove"]
+
+-- | A column with a one-item header menu, emitting this event.
+withHeaderMenu :: Text -> Widget Event
+withHeaderMenu what = columnView
+  []
+  (defaultColumnViewParams
+      [ (column "name" "Name" (\(l, _) -> widget Gtk.Label [#label := l]))
+          { columnHeaderMenu = [menuItem "Do it" (HeaderMenu what)]
+          }
+      ]
+    )
+    { ColumnView.rows = [("a" :: Text, "1" :: Text)]
+    }
+
+-- | Render the markups in turn, then activate the action behind the
+-- first item of the first column's header menu.
+headerMenuEvents :: [Widget Event] -> IO (Bool, [Event])
+headerMenuEvents []             = fail "headerMenuEvents: no markup"
+headerMenuEvents (first : rest) = do
+  received            <- newTBQueueIO 10
+  (window, state, view, sub) <- runUI $ do
+    state'  <- create first
+    view'   <- someStateWidget state'
+    window' <- Gtk.new Gtk.Window
+                       [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+    Gtk.windowSetChild window' (Just view')
+    Gtk.windowPresent window'
+    sub' <- subscribe first state' (atomically . writeTBQueue received)
+    pure (window', state', view', sub')
+  settle
+  _     <- foldM (\(s, old) new -> do
+                   s' <- runUI (patch' s old new)
+                   settle
+                   pure (s', new))
+                 (state, first)
+                 rest
+  found <- runUI
+    (Gtk.widgetActivateAction view "column-menu-name.item0" Nothing)
+  settle
+  runUI (cancel sub >> Gtk.windowDestroy window)
+  events <- atomically (flushTBQueue received)
+  pure (found, events)
 
 -- | The titles of the view's columns, in order.
 columnTitles :: Gtk.Widget -> IO [Text]
