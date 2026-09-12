@@ -34,6 +34,41 @@ Xvfb:
 xvfb-run cabal test all
 ```
 
+## Memory
+
+Every compile here loads the whole gi-gtk 4 interface, which is large.
+The Makefile caps GHC's heap at 4 GiB with `-M4g`, so a compiler that
+runs away dies with a heap overflow message instead of growing until the
+kernel kills something else on the machine to make room.
+
+Measured peaks, from a clean build:
+
+| What | GHC heap | Total in use |
+| --- | --- | --- |
+| `make build` | 294 MiB | 608 MiB |
+| `make check-lib` | 335 MiB | 838 MiB |
+| `make examples` | 359 MiB | 974 MiB |
+| `make examples`, at `-O2` | 1.2 GiB | 2.6 GiB |
+
+Cabal calls the compiler itself, so pass the cap through the
+environment:
+
+```
+GHCRTS=-M4g cabal build all
+```
+
+A GHCi session is the one to watch. It lives for hours, reloads on every
+save, and holds on to more after each reload. `ghcid.sh` and
+`ghcid-test.sh` cap it for that reason. If you start one yourself, cap
+it too:
+
+```
+ghci -igi-gtk-declarative/src +RTS -M4g -RTS
+```
+
+Run one compiler at a time. `make -j` multiplies the memory rather than
+dividing the time, so the Makefile declares itself not parallel.
+
 ## Documentation
 
 The documentation is built with [MkDocs](https://www.mkdocs.org/).

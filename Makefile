@@ -18,6 +18,20 @@ EXAMPLES := examples
 # rather than building against the newer default and finding out later.
 WARNINGS := -Wall -XHaskell2010
 
+# Settings for GHC's own runtime, applied to every compiler call below.
+#
+# -M caps the heap. A compile that runs away then dies with a heap
+# overflow message, instead of growing until the kernel kills something
+# on the machine to make room. The heaviest target here peaks at about
+# 360 MiB, so 4 GiB is a ceiling no honest build reaches.
+#
+# -A64m gives the collector a larger nursery, which cuts its work on a
+# build of this size.
+#
+# Pass the same settings to a compiler this file does not call, such as
+# cabal's, with GHCRTS=-M4g in the environment.
+GHC_RTS := +RTS -M4g -A64m -RTS
+
 SOURCES := $(shell find $(LIB) $(APP) -name '*.hs')
 
 # A nested X server, which is all a test needs: the tests drive the
@@ -27,6 +41,11 @@ XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 
 .PHONY: all build examples check check-lib check-app clean
 
+# One compiler at a time. Each call below loads the whole gi-gtk
+# interface, so `make -j` multiplies the memory rather than dividing the
+# time.
+.NOTPARALLEL:
+
 all: build
 
 # Typecheck the library and app-simple without producing code, which is
@@ -35,7 +54,8 @@ build:
 	@mkdir -p $(BUILD)
 	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) \
 	  -outputdir $(BUILD)/objects \
-	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs
+	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs \
+	  $(GHC_RTS)
 
 # The examples are part of the build: they are what says the library is
 # usable, and a GTK 4 port that does not compile against them is not done.
@@ -43,7 +63,7 @@ examples:
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(APP) -i$(EXAMPLES) $(WARNINGS) -threaded \
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
-	  $(EXAMPLES)/Main.hs
+	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
 check: check-lib check-app
 
@@ -55,7 +75,7 @@ check-lib: $(BUILD)/tests
 $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/Declarative/*.hs)
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(TEST) $(WARNINGS) -threaded \
-	  -outputdir $(BUILD)/test-objects -o $@ $(TEST)/Main.hs
+	  -outputdir $(BUILD)/test-objects -o $@ $(TEST)/Main.hs $(GHC_RTS)
 
 # The application loop: inputs, exits, and exceptions.
 check-app: $(BUILD)/app-tests
@@ -64,7 +84,7 @@ check-app: $(BUILD)/app-tests
 $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) -threaded \
-	  -outputdir $(BUILD)/app-test-objects -o $@ $(APPTEST)/Main.hs
+	  -outputdir $(BUILD)/app-test-objects -o $@ $(APPTEST)/Main.hs $(GHC_RTS)
 
 clean:
 	rm -rf $(BUILD)
