@@ -61,14 +61,21 @@ patchInContainer (StateTreeContainer top children) container os' ns' = do
     -- the GTK widget.
     (i, Just oldChildState, Just old, Just new) ->
       case patch oldChildState old new of
-        Modify  modify       -> pure <$> modify
+        Modify modify -> do
+          newChildState <- modify
+          -- The container may have changed in a way that changes what
+          -- the child's own properties mean.
+          reapplyChild container new =<< someStateWidget newChildState
+          pure (pure newChildState)
         Replace createWidget -> do
           newChildState  <- createWidget
           oldChildWidget <- someStateWidget oldChildState
           newChildWidget <- someStateWidget newChildState
           replaceChild container new i oldChildWidget newChildWidget
           return (pure newChildState)
-        Keep -> return (pure oldChildState)
+        Keep -> do
+          reapplyChild container new =<< someStateWidget oldChildState
+          return (pure oldChildState)
 
     -- When there is a new declarative widget, but there already exists a GTK
     -- widget in the corresponding place, we need to replace the GTK widget with

@@ -24,6 +24,7 @@
 module GI.Gtk.Declarative.ModelView.Internal
   ( ViewState(..)
   , Row(..)
+  , theColumn
   , Cell(..)
   , Commands(..)
   , newViewState
@@ -71,6 +72,9 @@ data Row event = Row
   -- ^ The state of the widget showing it.
   , rowIndex  :: Int
   -- ^ Which item of the vector it shows.
+  , rowColumn :: Text
+  -- ^ Which column renders it. A list view has the one column, whose
+  -- key is the empty text.
   , rowCancel :: IO ()
   -- ^ Cancels the row's subscription. Emptied on unbind.
   }
@@ -96,7 +100,9 @@ data ViewState item event = ViewState
   -- The rows themselves stay in Haskell.
   , viewSelection  :: Gtk.SingleSelection
   , viewItems      :: IORef (Vector item)
-  , viewRender     :: IORef (item -> Widget event)
+  , viewRenderers  :: IORef (HashMap Text (item -> Widget event))
+  -- ^ How to render a cell, by column key. A list view keeps its one
+  -- renderer under the empty key.
   , viewSink       :: IORef (event -> IO ())
   -- ^ Where a row's events go. A no-op until the view is subscribed to.
   , viewRows       :: IORef (HashMap Word (Row event))
@@ -139,11 +145,15 @@ objectKey :: Gtk.GObject o => o -> IO Word
 objectKey object =
   withManagedPtr object (pure . fromIntegral . ptrToWordPtr . castPtr)
 
+-- | The key a list view's single column goes under.
+theColumn :: Text
+theColumn = ""
+
 newViewState
   :: Vector item
-  -> (item -> Widget event)
+  -> HashMap Text (item -> Widget event)
   -> IO (ViewState item event)
-newViewState items render = do
+newViewState items renderers = do
   model     <- Gtk.stringListNew (Just (standIns (Vector.length items)))
   -- Built and then handed the model, rather than built from it:
   -- gtk_single_selection_new takes the model over, and the value here
@@ -152,7 +162,7 @@ newViewState items render = do
   Gtk.singleSelectionSetModel selection (Just model)
   ViewState model selection
     <$> newIORef items
-    <*> newIORef render
+    <*> newIORef renderers
     <*> newIORef noSink
     <*> newIORef HashMap.empty
     <*> newIORef (Commands Nothing Nothing)
@@ -177,15 +187,15 @@ setItems state items = do
 
 -- | Show a row. A row that has been shown before is patched rather than
 -- built again, which is the whole point of a recycled widget.
-bindCell :: ViewState item event -> Word -> Cell -> IO ()
-bindCell state key cell = do
-  index <- standInIndex cell
-  items <- readIORef (viewItems state)
-  case index >>= (items Vector.!?) of
-    Nothing    -> pure ()
-    Just value -> do
-      render <- readIORef (viewRender state)
-      showRow state key cell (maybe 0 id index) (render value)
+bindCell :: ViewState item event -> Text -> Word -> Cell -> IO ()
+bindCell state column key cell = do
+  index     <- standInIndex cell
+  items     <- readIORef (viewItems state)
+  renderers <- readIORef (viewRenderers state)
+  case (index >>= (items Vector.!?), HashMap.lookup column renderers) of
+    (Just value, Just render) ->
+      showRow state column key cell (maybe 0 id index) (render value)
+    _ -> pure ()
 
 -- | The row this cell is bound to, read from its stand-in object.
 standInIndex :: Cell -> IO (Maybe Int)
@@ -198,8 +208,14 @@ standInIndex cell = cellStandIn cell >>= \case
 
 -- | Put markup in a cell, patching whatever was there before.
 showRow
-  :: ViewState item event -> Word -> Cell -> Int -> Widget event -> IO ()
-showRow state key cell index markup = do
+  :: ViewState item event
+  -> Text
+  -> Word
+  -> Cell
+  -> Int
+  -> Widget event
+  -> IO ()
+showRow state column key cell index markup = do
   rows <- readIORef (viewRows state)
   row  <- case HashMap.lookup key rows of
     Just old -> do
@@ -211,11 +227,11 @@ showRow state key cell index markup = do
           created <- createNew
           cellSetChild cell . Just =<< someStateWidget created
           pure created
-      pure (Row markup newState index (pure ()))
+      pure (Row markup newState index column (pure ()))
     Nothing -> do
       created <- create markup
       cellSetChild cell . Just =<< someStateWidget created
-      pure (Row markup created index (pure ()))
+      pure (Row markup created index column (pure ()))
   cancelRow <- subscribeRow state markup (rowState row)
   modifyIORef' (viewRows state) (HashMap.insert key row { rowCancel = cancelRow })
 
@@ -253,11 +269,13 @@ teardownCell state key = do
 -- not changed, so GTK has no reason to bind anything.
 rebindRows :: ViewState item event -> IO ()
 rebindRows state = do
-  rows   <- readIORef (viewRows state)
-  items  <- readIORef (viewItems state)
-  render <- readIORef (viewRender state)
+  rows      <- readIORef (viewRows state)
+  items     <- readIORef (viewItems state)
+  renderers <- readIORef (viewRenderers state)
   for_ (HashMap.toList rows) $ \(key, row) ->
-    for_ (items Vector.!? rowIndex row) $ \value -> do
+    for_ ((,) <$> items Vector.!? rowIndex row
+              <*> HashMap.lookup (rowColumn row) renderers)
+      $ \(value, render) -> do
       let markup = render value
       rowCancel row
       newState <- case patch (rowState row) (rowMarkup row) markup of

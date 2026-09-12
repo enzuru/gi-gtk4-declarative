@@ -38,7 +38,6 @@ module GI.Gtk.Declarative.Attributes
   )
 where
 
-import           Data.Foldable                  ( foldl' )
 import qualified Data.GI.Base.Attributes       as GI
 import qualified Data.GI.Base.Signals          as GI
 import           Data.HashMap.Strict            ( HashMap )

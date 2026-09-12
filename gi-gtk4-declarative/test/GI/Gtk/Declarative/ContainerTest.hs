@@ -92,6 +92,32 @@ prop_box_child_properties_are_applied = once $ do
   align === Gtk.AlignFill
   margin === 7
 
+-- | A box decides what its children's properties mean: its
+-- orientation says which way `fill` and `padding` face. So a box that
+-- turns from vertical to horizontal has to place its children again.
+prop_box_children_follow_the_orientation = once $ do
+  (align, margin) <- evalIO $ renderAll
+    [ container
+      Gtk.Box
+      [#orientation := Gtk.OrientationVertical]
+      [ BoxChild defaultBoxChildProperties { fill = False, padding = 5 }
+                 (label "a")
+      ]
+    , container
+      Gtk.Box
+      [#orientation := Gtk.OrientationHorizontal]
+      [ BoxChild defaultBoxChildProperties { fill = False, padding = 5 }
+                 (label "a")
+      ]
+    ]
+    (\w -> do
+      Just child <- Gtk.widgetGetFirstChild w
+      (,) <$> Gtk.widgetGetHalign child <*> Gtk.widgetGetMarginStart child
+    )
+  -- Along the new orientation, not the old one.
+  align === Gtk.AlignCenter
+  margin === 5
+
 -- * Grid
 
 prop_grid_children_keep_their_positions = once $ do

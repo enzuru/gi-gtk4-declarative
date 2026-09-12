@@ -35,7 +35,6 @@ import qualified Data.Vector                   as Vector
 import qualified Data.GI.Base.Signals          as Signals
 import           GHC.Ptr                        ( nullPtr )
 import qualified GI.GLib                       as GLib
-import qualified GI.GLib.Constants             as GLib
 import qualified GI.GObject                    as GI
 import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk

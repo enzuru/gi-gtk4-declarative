@@ -57,6 +57,15 @@ class IsContainer container child | container -> child where
   -- constructed, where GTK would warn and ignore them.
   deferredProperties :: Proxy container -> [Text]
   deferredProperties _ = []
+  -- | Apply a child's properties again, for a child that was kept
+  -- through a patch rather than added.
+  --
+  -- A container whose own properties decide what a child's mean has to
+  -- do this. A box is the one: its orientation says which way @fill@
+  -- and @padding@ face, so a box that turns from vertical to
+  -- horizontal has to place its children again.
+  reapplyChild :: container -> child event -> Gtk.Widget -> IO ()
+  reapplyChild _ _ _ = pure ()
 
 -- | Common collection type for child widgets, used when patching containers.
 newtype Children child event = Children { unChildren :: Vector (child event) }

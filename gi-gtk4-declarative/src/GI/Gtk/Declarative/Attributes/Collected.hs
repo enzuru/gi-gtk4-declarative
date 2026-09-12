@@ -26,7 +26,6 @@ import           Data.HashMap.Strict            ( HashMap )
 import           Data.HashSet                   ( HashSet )
 import qualified Data.HashSet                  as HashSet
 import qualified Data.Set                      as Set
-import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Data.Typeable
 import           GHC.TypeLits
