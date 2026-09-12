@@ -6,6 +6,13 @@
 -- widgets using the underlying imperative operations, so that your
 -- rendering can always be a pure function from your state to a
 -- "Widget".
+-- The model-based views are not here. @ListViewParams@ and
+-- @ColumnViewParams@ share the field names @rows@, @selected@,
+-- @scrollTo@, @onSelected@, and @onActivated@, so re-exporting both
+-- would make those names ambiguous for everyone importing this module.
+-- Import "GI.Gtk.Declarative.ModelView.ListView" or
+-- "GI.Gtk.Declarative.ModelView.ColumnView" for those.
+--
 -- Several container modules define children with the same field names
 -- (@properties@, @child@), so, as with 'GI.Gtk.Declarative.Container.Grid',
 -- they are imported here for their instances alone. Import the module of

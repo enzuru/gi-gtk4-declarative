@@ -75,6 +75,11 @@ data Row event = Row
   , rowColumn :: Text
   -- ^ Which column renders it. A list view has the one column, whose
   -- key is the empty text.
+  , rowCell   :: Cell
+  -- ^ The cell it sits in, so that a row whose widget has to be
+  -- replaced can be given the new one. The cell is two closures over a
+  -- list item GTK owns, and this record is dropped on teardown, so
+  -- holding it for as long as the record lives is safe.
   , rowCancel :: IO ()
   -- ^ Cancels the row's subscription. Emptied on unbind.
   }
@@ -227,11 +232,11 @@ showRow state column key cell index markup = do
           created <- createNew
           cellSetChild cell . Just =<< someStateWidget created
           pure created
-      pure (Row markup newState index column (pure ()))
+      pure (Row markup newState index column cell (pure ()))
     Nothing -> do
       created <- create markup
       cellSetChild cell . Just =<< someStateWidget created
-      pure (Row markup created index column (pure ()))
+      pure (Row markup created index column cell (pure ()))
   cancelRow <- subscribeRow state markup (rowState row)
   modifyIORef' (viewRows state) (HashMap.insert key row { rowCancel = cancelRow })
 
@@ -281,10 +286,10 @@ rebindRows state = do
       newState <- case patch (rowState row) (rowMarkup row) markup of
         Modify  modify    -> modify
         Keep              -> pure (rowState row)
-        -- A row whose widget has to be replaced is left for the next
-        -- bind: the cell it sits in is GTK's, and it is not on hand
-        -- here.
-        Replace _createNew -> pure (rowState row)
+        Replace createNew -> do
+          created <- createNew
+          cellSetChild (rowCell row) . Just =<< someStateWidget created
+          pure created
       cancelRow <- subscribeRow state markup newState
       modifyIORef'
         (viewRows state)
