@@ -63,6 +63,28 @@ is not dragged back on the next event.
   }
 ```
 
+## Selection
+
+A view selects one row at a time, which is what a list of things to
+choose from wants. A view whose rows are not a choice asks for no
+selection at all:
+
+``` haskell
+(defaultColumnViewParams theColumns)
+  { rows = cells
+  , selectionMode = SelectNothing
+  }
+```
+
+Under `SelectNothing` GTK highlights nothing, and `selected`,
+`onSelected`, and the selection command do nothing. This is what a
+spreadsheet wants: what is selected there is a cell rather than a row,
+and the program draws that itself. Activating a row still works, so a
+double click and Enter still arrive at `onActivated`.
+
+The selection model is one GTK object or the other, so a view whose
+mode changes between renders is built again rather than patched.
+
 ## Events
 
 A widget inside a row emits events the same way it would anywhere else.
