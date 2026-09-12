@@ -8,10 +8,11 @@
 -- | Internal helpers for applying attributes and signal handlers to GTK+
 -- widgets.
 module GI.Gtk.Declarative.Attributes.Collected
-  ( CollectedProperties
+  ( ClassSet
+  , CollectedProperty(..)
+  , CollectedProperties
   , Collected(..)
   , canBeModifiedTo
-  , collectAttributes
   , constructProperties
   , constructPropertiesOf
   , updateProperties
@@ -22,15 +23,17 @@ where
 import qualified Data.GI.Base.Attributes       as GI
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.HashMap.Strict            ( HashMap )
+import           Data.HashSet                   ( HashSet )
 import qualified Data.HashSet                  as HashSet
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import           Data.Text                      ( Text )
 import           Data.Typeable
-import           Data.Vector                    ( Vector )
 import           GHC.TypeLits
 import qualified GI.Gtk                        as Gtk
-import           GI.Gtk.Declarative.Attributes
+
+-- | A set of CSS classes.
+type ClassSet = HashSet Text
 
 -- | A collected property key/value pair, to be used when
 -- settings properties when patching widgets.
@@ -75,26 +78,6 @@ instance Semigroup (Collected widget event) where
 
 instance Monoid (Collected widget event) where
   mempty = Collected mempty mempty
-
--- | Collect declarative markup attributes to the patching-optimized
--- 'Collected' data structure.
-collectAttributes :: Vector (Attribute widget event) -> Collected widget event
-collectAttributes = foldl' go mempty
- where
-  go
-    :: Collected widget event
-    -> Attribute widget event
-    -> Collected widget event
-  go Collected {..} = \case
-    attr := value -> Collected
-      { collectedProperties = HashMap.insert (Text.pack (symbolVal attr))
-                                             (CollectedProperty attr value)
-                                             collectedProperties
-      , ..
-      }
-    Classes classSet ->
-      Collected { collectedClasses = collectedClasses <> classSet, .. }
-    _ -> Collected { .. }
 
 -- | Create a list of GTK construct operations based on collected
 -- properties, used when creating new widgets.

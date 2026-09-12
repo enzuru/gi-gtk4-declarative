@@ -15,13 +15,18 @@ widgets, so the patching model fits them.
 This one needs a design decision first: a declarative list over a model
 is a different thing from a declarative tree of widgets.
 
-## 2. Widgets that hold a reference to another widget
+## 2. Widgets that point at another widget
 
-`StackSwitcher` and `StackSidebar` need the `Stack` they control.
-`Window` takes a title bar widget through `gtk_window_set_titlebar`.
-Neither can be written as an attribute today, because an attribute
-takes a value, not a declarative widget. `CustomWidget` is the only way
-to reach them now.
+`StackSwitcher` and `StackSidebar` need the `Stack` they control, and a
+`SearchBar` needs the widget whose keys it captures. These are not
+widgets a parent owns: the stack lives somewhere else in the layout,
+and the switcher only points at it.
+
+A slot cannot express that, because a slot holds a widget of its own.
+What would is either a combined constructor, which builds the switcher
+and the stack together and wires them up, or a way to name a widget in
+one place and refer to it in another. The combined constructor is the
+smaller of the two and covers the cases that come up.
 
 ## 3. Housekeeping
 
@@ -38,6 +43,11 @@ to reach them now.
 
 ## Done
 
+- Widget-valued properties. `slot`, and `titlebar`, `frameLabel`,
+  `expanderLabel`, `listBoxPlaceholder`, and `menuButtonPopover` in
+  `GI.Gtk.Declarative.Slots`. The widget in a slot is created, patched,
+  subscribed to, and emptied like any other, which is what the four
+  tests in `GI.Gtk.Declarative.SlotTest` check.
 - The cabal build path. `cabal build all` and `cabal test all` both run,
   and both test suites pass through them. Four upper bounds were wrong
   and excluded what is installed: `containers`, `data-default-class`,

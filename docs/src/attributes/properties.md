@@ -41,3 +41,42 @@ container ListBox [ #selectionMode := SelectionModeMultiple ]
 
 
 [gi-gtk]: https://hackage.haskell.org/package/gi-gtk
+
+## Widget-Valued Properties
+
+Some properties hold another widget rather than a value: a window's
+title bar, a frame's label, the placeholder a list box shows when it is
+empty. These cannot be written with `:=`, because what goes there is a
+widget of your own, with its own attributes, children, and events.
+
+The `GI.Gtk.Declarative.Slots` module has them as attributes:
+
+``` haskell
+bin Window
+  [ #title := "Example"
+  , titlebar (container HeaderBar [] [headerBarTitle (widget Label [])])
+  ]
+  (widget Label [#label := "Nothing here yet."])
+```
+
+These are the ones it names:
+
+- `titlebar`, for a window
+- `frameLabel`, for a frame
+- `expanderLabel`, for an expander
+- `listBoxPlaceholder`, for a list box
+- `menuButtonPopover`, for a menu button
+
+The widget in such a slot lives the same life as any other. It is
+created with its parent, patched in place when it changes, subscribed to
+for its events, and taken away when the attribute is gone.
+
+For a widget-valued property this module does not name, use `slot` and
+give it a name of your own along with the setter from gi-gtk:
+
+``` haskell
+slot "placeholder" Gtk.listBoxSetPlaceholder (widget Label [#label := "Empty"])
+```
+
+The name tells one slot from another when patching, so two slots on the
+same widget must not share a name.

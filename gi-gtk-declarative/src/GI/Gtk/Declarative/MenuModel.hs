@@ -221,10 +221,12 @@ instance Patchable (MenuWidget widget) where
     updateClasses widget' mempty (collectedClasses collected)
     dispatch <- newIORef (const (pure ()))
     _        <- buildMenu widget' dispatch items
+    slots <- createSlots widget' attrs
     let state = MenuState { menuShape = shapeOf items, menuDispatch = dispatch }
-    pure (SomeState (StateTreeWidget (StateTreeNode widget' collected state)))
+    pure
+      (SomeState (StateTreeWidget (StateTreeNode widget' collected state slots)))
 
-  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) _old new@(MenuWidget (_ctor :: Gtk.ManagedPtr
+  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (MenuWidget _ oldAttributes _) new@(MenuWidget (_ctor :: Gtk.ManagedPtr
       w2
     -> w2) newAttributes newItems)
     = case (st, eqT @w1 @w2, eqT @cs @MenuState) of
@@ -245,6 +247,10 @@ instance Patchable (MenuWidget widget) where
                 -- The events of the new items are picked up when the
                 -- new markup is subscribed to; only a change of shape
                 -- needs a new model.
+                slots    <- patchSlots widget'
+                                       (stateTreeSlots top)
+                                       oldAttributes
+                                       newAttributes
                 newState <- if menuShape oldState == newShape
                   then pure oldState
                   else do
@@ -255,6 +261,7 @@ instance Patchable (MenuWidget widget) where
                     (StateTreeWidget top
                       { stateTreeCollectedAttributes = newCollected
                       , stateTreeCustomState         = newState
+                      , stateTreeSlots               = slots
                       }
                     )
                   )
@@ -275,8 +282,10 @@ instance EventSource (MenuWidget widget) where
                    (\i -> for_ (events Vector.!? i) cb)
         widget'  <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
         handlers <- foldMap (addSignalHandler cb widget') attrs
+        slots'   <- subscribeSlots (stateTreeSlots top) attrs cb
         pure
           (  handlers
+          <> slots'
           <> fromCancellation
                (writeIORef (menuDispatch state) (const (pure ())))
           )

@@ -161,13 +161,16 @@ instance Patchable (Bin parent) where
     widget' <- Gtk.new ctor (constructProperties collected)
     updateClasses widget' mempty (collectedClasses collected)
 
+    slots       <- createSlots widget' attrs
     childState  <- create child
     childWidget <- someStateWidget childState
     setBinChild widget' (Just childWidget)
     return
-      (SomeState (StateTreeBin (StateTreeNode widget' collected ()) childState))
+      (SomeState
+        (StateTreeBin (StateTreeNode widget' collected () slots) childState)
+      )
 
-  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Bin _ _ oldChild) (Bin (ctor :: Gtk.ManagedPtr
+  patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Bin _ oldAttributes oldChild) (Bin (ctor :: Gtk.ManagedPtr
       w2
     -> w2) newAttributes newChild)
     = case (st, eqT @w1 @w2) of
@@ -185,8 +188,14 @@ instance Patchable (Bin parent) where
               updateClasses binWidget
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)
+              slots <- patchSlots binWidget
+                                  (stateTreeSlots top)
+                                  oldAttributes
+                                  newAttributes
 
-              let top' = top { stateTreeCollectedAttributes = newCollected }
+              let top' = top { stateTreeCollectedAttributes = newCollected
+                             , stateTreeSlots               = slots
+                             }
               case patch oldChildState oldChild newChild of
                 Modify  modify    -> SomeState . StateTreeBin top' <$> modify
                 Replace createNew -> do
@@ -208,7 +217,8 @@ instance EventSource (Bin parent) where
     StateTreeBin top childState -> do
       binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
       handlers' <- foldMap (addSignalHandler cb binWidget) props
-      (<> handlers') <$> subscribe child childState cb
+      slots'    <- subscribeSlots (stateTreeSlots top) props cb
+      (<> (handlers' <> slots')) <$> subscribe child childState cb
     _ -> error "Cannot subscribe to Bin events with a non-bin state tree."
 
 instance a ~ b => FromWidget (Bin a) (Bin b) where

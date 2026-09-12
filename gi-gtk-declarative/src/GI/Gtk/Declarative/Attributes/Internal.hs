@@ -8,6 +8,9 @@
 -- widgets.
 module GI.Gtk.Declarative.Attributes.Internal
   ( addSignalHandler
+  , createSlots
+  , patchSlots
+  , subscribeSlots
   )
 where
 
@@ -17,9 +20,15 @@ import           Control.Monad                  ( forM
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
                                                 )
+import           Data.Foldable                  ( fold
+                                                , for_
+                                                )
 import           Data.GI.Base                   ( withManagedPtr )
+import           Data.HashMap.Strict            ( HashMap )
+import qualified Data.HashMap.Strict           as HashMap
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
+import           Data.Vector                    ( Vector )
 import qualified Data.GI.Base.Signals          as Signals
 import qualified GI.GObject                    as GI
 import qualified GI.Gio                        as Gio
@@ -28,6 +37,8 @@ import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative.Attributes
 import           GI.Gtk.Declarative.Attributes.Internal.Conversions
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.Patch
+import           GI.Gtk.Declarative.State
 
 addSignalHandler
   :: (Gtk.IsWidget widget, MonadIO m)
@@ -109,3 +120,62 @@ removeController widget' name handlerId = do
     when (this == Just name) $ do
       GI.signalHandlerDisconnect controller handlerId
       Gtk.widgetRemoveController widget' controller
+
+--
+-- Widget-valued properties
+--
+
+-- | Create the widgets for a widget's widget-valued properties, and put
+-- them in place.
+createSlots
+  :: Gtk.IsWidget widget
+  => widget
+  -> Vector (Attribute widget event)
+  -> IO (HashMap Text SomeState)
+createSlots widget' attributes = traverse fill (collectSlots attributes)
+ where
+  fill (setter, child) = do
+    state <- create child
+    setter widget' . Just =<< someStateWidget state
+    pure state
+
+-- | Patch the widgets in a widget's widget-valued properties. A slot
+-- the new attributes no longer name is emptied.
+patchSlots
+  :: Gtk.IsWidget widget
+  => widget
+  -> HashMap Text SomeState
+  -> Vector (Attribute widget e1)
+  -> Vector (Attribute widget e2)
+  -> IO (HashMap Text SomeState)
+patchSlots widget' states oldAttributes newAttributes = do
+  let old = collectSlots oldAttributes
+      new = collectSlots newAttributes
+  for_ (HashMap.difference old new) $ \(setter, _) -> setter widget' Nothing
+  HashMap.traverseWithKey (patchSlot old) new
+ where
+  patchSlot old name (setter, newChild) =
+    case (HashMap.lookup name states, HashMap.lookup name old) of
+      (Just state, Just (_, oldChild)) -> case patch state oldChild newChild of
+        Modify  modify    -> modify
+        Replace createNew -> fill setter createNew
+        Keep              -> pure state
+      -- A slot that was not filled before.
+      _ -> fill setter (create newChild)
+  fill setter createNew = do
+    state <- createNew
+    setter widget' . Just =<< someStateWidget state
+    pure state
+
+-- | Subscribe to the widgets in a widget's widget-valued properties.
+subscribeSlots
+  :: HashMap Text SomeState
+  -> Vector (Attribute widget event)
+  -> (event -> IO ())
+  -> IO Subscription
+subscribeSlots states attributes cb =
+  fold <$> HashMap.traverseWithKey subscribeSlot (collectSlots attributes)
+ where
+  subscribeSlot name (_, child) = case HashMap.lookup name states of
+    Just state -> subscribe child state cb
+    Nothing    -> pure mempty
