@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -10,6 +11,7 @@ module GI.Gtk.Declarative.TestWidget where
 
 import           Control.Applicative
 import           Control.Monad.Except
+import           Control.Monad.IO.Class             ( MonadIO, liftIO )
 import           Data.Int                           ( Int32 )
 import           Data.Text                          ( Text )
 import           Data.Traversable                   ( for )
@@ -19,7 +21,7 @@ import qualified Data.Vector                       as Vector
 import           Data.Void
 import qualified GI.Gtk                            as Gtk
 import           GI.Gtk.Declarative
-import           GI.Gtk.Declarative.Container.Grid  ( GridChild (..), GridChildProperties (..) )
+import           GI.Gtk.Declarative.Container.Class ( childWidgets )
 import           GI.Gtk.Declarative.Container.Grid as Grid
 import           GI.Gtk.Declarative.EventSource
 import           Hedgehog                    hiding ( label )
@@ -60,7 +62,9 @@ instance HasGtkDefaults TestWidget where
   setDefaults = \case
     TestButton label useUnderline ->
       TestButton label (useUnderline <|> Just False)
-    TestCustomWidget fontName -> TestCustomWidget (fontName <|> Just "Sans 12")
+    -- An entry with no placeholder text set reads back as none, so
+    -- there is no default to fill in here.
+    TestCustomWidget placeholder -> TestCustomWidget placeholder
     TestScrolledWindow policy child -> TestScrolledWindow
       (policy <|> Just Gtk.PolicyTypeAutomatic)
       (setDefaults child)
@@ -83,21 +87,21 @@ onlyJusts = Vector.concatMap (maybe Vector.empty Vector.singleton)
 
 toTestWidget :: TestWidget -> Widget Void
 toTestWidget = \case
-  TestCustomWidget fontName -> Widget (CustomWidget { .. })
+  TestCustomWidget placeholder -> Widget (CustomWidget { .. })
    where
     customParams     = ()
-    customAttributes = case fontName of
-      Just t  -> [#fontName := t]
+    customAttributes = case placeholder of
+      Just t  -> [#placeholderText := t]
       Nothing -> []
-    customWidget = Gtk.FontButton
+    customWidget = Gtk.Entry
     customCreate () = do
-      btn <- Gtk.new Gtk.FontButton []
-      return (btn, ())
-    customPatch :: () -> () -> () -> CustomPatch Gtk.FontButton ()
+      entry <- Gtk.new Gtk.Entry []
+      return (entry, ())
+    customPatch :: () -> () -> () -> CustomPatch Gtk.Entry ()
     customPatch _ () () = CustomKeep
     customSubscribe
-      :: () -> () -> Gtk.FontButton -> (Void -> IO ()) -> IO Subscription
-    customSubscribe () () _lbl _cb = do
+      :: () -> () -> Gtk.Entry -> (Void -> IO ()) -> IO Subscription
+    customSubscribe () () _entry _cb = do
       return (fromCancellation (pure ()))
   TestButton label useUnderline -> widget
     Gtk.Button
@@ -121,77 +125,89 @@ toTestWidget = \case
       (Vector.fromList children)
     )
 
+-- | Read a GTK widget back as a 'TestWidget'. GTK 4 has no
+-- @gtk_container_get_children@ and no child properties, so the tree is
+-- walked through the sibling chain and each container is asked for its
+-- own child state.
 fromGtkWidget :: (MonadIO m) => Gtk.Widget -> m (Either Text TestWidget)
 fromGtkWidget = runExceptT . go
  where
   go :: (MonadIO m) => Gtk.Widget -> ExceptT Text m TestWidget
   go w = do
-    name <- #getName w
-    case name of
-      "GtkButton" -> withCast
-        w
-        Gtk.Button
-        (\btn ->
-          TestButton
-            <$> Gtk.get btn #label
-            <*> (Just <$> Gtk.get btn #useUnderline)
-        )
-      "GtkFontButton" -> withCast
-        w
-        Gtk.FontButton
-        (\btn -> TestCustomWidget . Just <$> Gtk.get btn #fontName)
-      "GtkScrolledWindow" -> withCast w Gtk.ScrolledWindow $ \win -> do
-        w' <-
-          #getChild win
-            >>= maybe (throwError "No viewport in scrolled window") pure
-        vscrollbarPolicy <- Just <$> Gtk.get win #vscrollbarPolicy
-        withCast w' Gtk.Viewport $ \viewport -> do
-          child <-
-            #getChild viewport
-              >>= maybe (throwError "No child in scrolled window") pure
-          TestScrolledWindow vscrollbarPolicy <$> go child
-      "GtkBox" -> withCast w Gtk.Box $ \box -> do
-        childGtkWidgets <- #getChildren box
-        boxChildProps   <- for childGtkWidgets $ \childGtkWidget -> do
-          (expand, fill, padding, _) <- #queryChildPacking box childGtkWidget
-          pure (BoxChildProperties expand fill padding)
-        childWidgets <- traverse go childGtkWidgets
-        orientation  <- Just <$> Gtk.get box #orientation
+    casts <- liftIO $ do
+      box    <- Gtk.castTo Gtk.Box w
+      grid   <- Gtk.castTo Gtk.Grid w
+      scroll <- Gtk.castTo Gtk.ScrolledWindow w
+      button <- Gtk.castTo Gtk.Button w
+      entry  <- Gtk.castTo Gtk.Entry w
+      pure (box, grid, scroll, button, entry)
+    case casts of
+      (Just box, _, _, _, _) -> do
+        childGtkWidgets <- childWidgets box
+        boxChildProps   <- for childGtkWidgets (boxChildProperties box)
+        childWidgets'   <- traverse go childGtkWidgets
+        orientation     <- Just <$> Gtk.get box #orientation
         pure
-          (TestBox orientation (zipWith TestBoxChild boxChildProps childWidgets)
+          (TestBox
+            orientation
+            (Vector.toList
+              (Vector.zipWith TestBoxChild boxChildProps childWidgets')
+            )
           )
-      "GtkGrid" -> withCast w Gtk.Grid $ \grid -> do
-        childGtkWidgets <- #getChildren grid
+      (_, Just grid, _, _, _) -> do
+        childGtkWidgets <- childWidgets grid
         gridChildren    <- for childGtkWidgets $ \childGtkWidget -> do
-          let prop = getGridChildProp grid childGtkWidget
-          height     <- prop "height"
-          width      <- prop "width"
-          leftAttach <- prop "left-attach"
-          topAttach  <- prop "top-attach"
-          child      <- go childGtkWidget
+          (leftAttach, topAttach, width, height) <- Gtk.gridQueryChild
+            grid
+            childGtkWidget
+          child <- go childGtkWidget
           pure (TestGridChild GridChildProperties {..} child)
         -- the order of the children is not maintained by the Grid, so we
         -- need to sort here to allow accurate comparisons of the children
         let sortedChildren =
-              sortOn (\(TestGridChild p _) -> topAttach p) gridChildren
+              sortOn (\(TestGridChild p _) -> topAttach p)
+                     (Vector.toList gridChildren)
         pure (TestGrid sortedChildren)
-      _ -> throwError ("Unsupported TestWidget: " <> name)
-  withCast
-    :: (MonadIO m, Gtk.GObject w, Gtk.GObject w')
-    => w
-    -> (Gtk.ManagedPtr w' -> w')
-    -> (w' -> ExceptT Text m a)
-    -> ExceptT Text m a
-  withCast w ctor f = liftIO (Gtk.castTo ctor w) >>= \case
-    Just w' -> f w'
-    Nothing -> throwError "Failed to cast widget"
+      (_, _, Just win, _, _) -> do
+        w' <-
+          Gtk.scrolledWindowGetChild win
+            >>= maybe (throwError "No child in scrolled window") pure
+        vscrollbarPolicy <- Just <$> Gtk.get win #vscrollbarPolicy
+        -- A child that does not scroll on its own is wrapped in a
+        -- viewport by the scrolled window.
+        viewport         <- liftIO (Gtk.castTo Gtk.Viewport w')
+        child            <- case viewport of
+          Nothing -> pure w'
+          Just v ->
+            Gtk.viewportGetChild v
+              >>= maybe (throwError "No child in viewport") pure
+        TestScrolledWindow vscrollbarPolicy <$> go child
+      (_, _, _, Just btn, _) ->
+        TestButton
+          <$> (maybe "" id <$> Gtk.get btn #label)
+          <*> (Just <$> Gtk.get btn #useUnderline)
+      (_, _, _, _, Just entry) ->
+        TestCustomWidget <$> Gtk.get entry #placeholderText
+      _ -> do
+        name <- Gtk.widgetGetName w
+        throwError ("Unsupported TestWidget: " <> name)
 
-getGridChildProp
-  :: (MonadIO m) => Gtk.Grid -> Gtk.Widget -> Text -> ExceptT Text m Int32
-getGridChildProp grid child prop = do
-  gValue <- liftIO (Gtk.toGValue (0 :: Int32))
-  Gtk.containerChildGetProperty grid child prop gValue
-  liftIO (Gtk.fromGValue gValue)
+-- | Read back the properties a box applied to one of its children.
+boxChildProperties
+  :: MonadIO m => Gtk.Box -> Gtk.Widget -> m BoxChildProperties
+boxChildProperties box child = do
+  orientation <- Gtk.orientableGetOrientation box
+  case orientation of
+    Gtk.OrientationVertical -> do
+      expand <- Gtk.widgetGetVexpand child
+      align  <- Gtk.widgetGetValign child
+      margin <- Gtk.widgetGetMarginTop child
+      pure (BoxChildProperties expand (align == Gtk.AlignFill) (fromIntegral margin))
+    _ -> do
+      expand <- Gtk.widgetGetHexpand child
+      align  <- Gtk.widgetGetHalign child
+      margin <- Gtk.widgetGetMarginStart child
+      pure (BoxChildProperties expand (align == Gtk.AlignFill) (fromIntegral margin))
 
 -- * Generators
 
@@ -266,7 +282,7 @@ genGridChildProperties rowN = do
 
 genCustomWidget :: Gen TestWidget
 genCustomWidget = do
-  TestCustomWidget <$> Gen.maybe (Gen.choice [pure "Sans 10"])
+  TestCustomWidget <$> Gen.maybe (Gen.choice [pure "Type here"])
 
 genButton :: Gen TestWidget
 genButton = do

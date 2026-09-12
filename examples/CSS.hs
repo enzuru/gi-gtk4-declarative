@@ -6,12 +6,12 @@ module CSS where
 
 import           Control.Concurrent.Async       ( async )
 import           Control.Monad                  ( void )
-import           Data.ByteString                ( ByteString )
 import           Data.Functor                   ( (<&>) )
 import           Data.Text                      ( Text )
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
 import qualified GI.Gdk                        as Gdk
+import qualified GI.GLib                       as GLib
 import           GI.Gtk                         ( Box(..)
                                                 , Button(..)
                                                 , Orientation(..)
@@ -32,7 +32,7 @@ colors = ["red", "green", "blue", "yellow"]
 
 view' :: State -> AppView Window Event
 view' si =
-  bin Window [#title := "CSS Example", on #deleteEvent (const (True, Closed))]
+  bin Window [#title := "CSS Example", on #closeRequest (True, Closed)]
     $ container
         Box
         [#orientation := OrientationVertical]
@@ -51,7 +51,7 @@ update' s (MoveTo i)
   | otherwise                   = Transition s (return Nothing)
 update' _ Closed = Exit
 
-styles :: ByteString
+styles :: Text
 styles = mconcat
   [ "button { border: 2px solid gray; font-weight: 800; }"
   , ".selected { background: white; border: 2px solid black; }"
@@ -64,21 +64,23 @@ styles = mconcat
 
 main :: IO ()
 main = do
-  void $ Gtk.init Nothing
+  Gtk.init
 
-  -- Set up screen and CSS provider
-  screen <- maybe (fail "No screen?!") return =<< Gdk.screenGetDefault
-  p      <- Gtk.cssProviderNew
-  Gtk.cssProviderLoadFromData p styles
-  Gtk.styleContextAddProviderForScreen
-    screen
+  -- Set up the display and the CSS provider. In GTK 4 a provider is
+  -- added for a display, not for a screen.
+  display <- maybe (fail "No display?!") return =<< Gdk.displayGetDefault
+  p       <- Gtk.cssProviderNew
+  Gtk.cssProviderLoadFromString p styles
+  Gtk.styleContextAddProviderForDisplay
+    display
     p
     (fromIntegral Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
   -- Start main loop
+  mainLoop <- GLib.mainLoopNew Nothing False
   void . async $ do
     void $ runLoop app
-    Gtk.mainQuit
-  Gtk.main
+    GLib.mainLoopQuit mainLoop
+  GLib.mainLoopRun mainLoop
  where
   app = App { view = view', update = update', inputs = [], initialState = 0 }

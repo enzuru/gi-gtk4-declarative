@@ -1,5 +1,5 @@
 name:                 examples
-version:              0.7.0
+version:              0.8.0
 synopsis:             Examples of using gi-gtk-declarative and gi-gtk-declarative-app-simple.
 description:          Examples showcasing the use of gi-gtk-declarative and
                       gi-gtk-declarative-app-simple in a multitude of ways. These try to cover
@@ -13,7 +13,7 @@ copyright:            Oskar Wickström
 category:             Graphics
 build-type:           Simple
 cabal-version:        >=1.10
-tested-with:          GHC == 8.6.3
+tested-with:          GHC == 9.10.3
 
 executable example
   main-is:              Main.hs
@@ -22,13 +22,14 @@ executable example
                       , CustomWidget
                       , Dialog
                       , Exit
-                      , FileChooserButton
+                      , FileChooser
                       , Functor
                       , Grid
                       , Hello
                       , ListBox
                       , ManyBoxes
                       , MenuBar
+                      , Stack
                       , Notebook
                       , Paned
   build-depends:        base >=4.10 && <5
@@ -36,13 +37,16 @@ executable example
                       , bytestring
                       , gi-gobject
                       , gi-glib
-                      , gi-gtk <4
+                      , gi-gtk >=4 && <5
+                      , gi-gio
                       , gi-gtk-declarative
                       , gi-gtk-declarative-app-simple
                       , gi-gdk
                       , haskell-gi
                       , haskell-gi-base
                       , pipes
+                      , pipes-concurrency
+                      , stm
                       , pipes-extras
                       , text
                       , vector

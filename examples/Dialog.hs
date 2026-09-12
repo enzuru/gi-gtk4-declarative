@@ -3,10 +3,11 @@
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Example of using the 'Dialog' widget. Note that it's not using
--- the action bar support, nor the response codes mechanism of GTK+
--- dialogs. Those are more object-oriented APIs that do not fit well
--- with gi-gtk-declarative.
+-- | Example of a dialog-like window.
+--
+-- GTK 4 deprecated @GtkDialog@ along with its response codes, which
+-- were an object-oriented API that never fit the declarative style
+-- anyway. A modal window with buttons of your own does the same job.
 module Dialog where
 
 import           Control.Monad                  ( void )
@@ -16,9 +17,9 @@ import           Data.Text                      ( Text )
 import           GI.Gtk                         ( Align(..)
                                                 , Box(..)
                                                 , Button(..)
-                                                , Dialog(..)
                                                 , Label(..)
                                                 , Orientation(..)
+                                                , Window(..)
                                                 )
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.App.Simple
@@ -27,12 +28,13 @@ newtype State = State (Maybe Text)
 
 data Event = Confirmed | Cancelled | Closed
 
-view' :: State -> AppView Dialog Event
+view' :: State -> AppView Window Event
 view' (State msg) =
   bin
-      Dialog
+      Window
       [ #title := "Hello"
-      , on #deleteEvent (const (True, Closed))
+      , #modal := True
+      , on #closeRequest (True, Closed)
       , #widthRequest := 300
       , #heightRequest := 200
       ]
@@ -77,4 +79,3 @@ main = void $ run App { view         = view'
                       , inputs       = []
                       , initialState = State Nothing
                       }
-

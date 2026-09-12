@@ -1,3 +1,10 @@
+* 0.8.0
+    - Port to GTK 4 (gi-gtk 4.x). This is a breaking release; use 0.7 for GTK 3.
+    - `run` creates and runs a `GLib.MainLoop`, as GTK 4 removed
+      `gtk_main` and `gtk_main_quit`.
+    - The window of an `App` is presented with `gtk_window_present` and
+      taken down with `gtk_window_destroy`, so `run` and `runLoop` now
+      ask for a GTK window.
 * 0.6.3
     - Add `Grid` container widget
     - Fix bugs in patching properties for all types of widgets

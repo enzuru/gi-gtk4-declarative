@@ -25,7 +25,7 @@ view' s =
   bin
       Window
       [ #title := "Exit"
-      , on #deleteEvent (const (True, ExitApplication))
+      , on #closeRequest (True, ExitApplication)
       , #widthRequest := 400
       , #heightRequest := 300
       ]

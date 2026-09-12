@@ -9,7 +9,7 @@ import qualified CSS
 import qualified CustomWidget
 import qualified Dialog
 import qualified Exit
-import qualified FileChooserButton
+import qualified FileChooser
 import qualified Functor
 import qualified Grid
 import qualified Hello
@@ -18,13 +18,14 @@ import qualified ManyBoxes
 import qualified MenuBar
 import qualified Notebook
 import qualified Paned
+import qualified Stack
 
 main :: IO ()
 main =
   let examples =
           [ ("AddBoxes"         , AddBoxes.main)
           , ("CustomWidget"     , CustomWidget.main)
-          , ("FileChooserButton", FileChooserButton.main)
+          , ("FileChooser"      , FileChooser.main)
           , ("Hello"            , Hello.main)
           , ("ListBox"          , ListBox.main)
           , ("Functor"          , Functor.main)
@@ -35,6 +36,7 @@ main =
           , ("Notebook"         , Notebook.main)
           , ("CSS"              , CSS.main)
           , ("Paned"            , Paned.main)
+          , ("Stack"            , Stack.main)
           , ("Dialog"           , Dialog.main)
           ]
   in  getArgs >>= \case

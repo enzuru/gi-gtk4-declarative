@@ -27,13 +27,19 @@ view' State =
   bin
       Window
       [ #title := "Grid"
-      , on #deleteEvent (const (True, Closed))
+      , on #closeRequest (True, Closed)
       , #widthRequest := 400
       , #heightRequest := 300
       ]
     $ container
         Grid
-        [#rowSpacing := 4, #columnSpacing := 4, #margin := 4]
+        [ #rowSpacing := 4
+        , #columnSpacing := 4
+        , #marginStart := 4
+        , #marginEnd := 4
+        , #marginTop := 4
+        , #marginBottom := 4
+        ]
         [ GridChild
           { properties = defaultGridChildProperties { width = 3, height = 3 }
           , child      = widget Button [#label := "A", #vexpand := True]

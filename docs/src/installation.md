@@ -4,17 +4,19 @@ To install the gi-gtk-declarative package in your project, follow
 these steps and guidelines:
 
 - The gi-gtk-declarative package builds on
-  [gi-gtk](https://hackage.haskell.org/package/gi-gtk), and thus
-  depend on the same libraries. First, follow the instructions on how
-  to install GTK+ dependencies using your package manager of choice
-  over at [the gi-gtk
-  README](https://github.com/haskell-gi/haskell-gi#installation).
+  [gi-gtk](https://hackage.haskell.org/package/gi-gtk) version 4, and
+  thus depends on the same libraries. First, follow the instructions on
+  how to install the GTK dependencies using your package manager of
+  choice over at [the gi-gtk
+  README](https://github.com/haskell-gi/haskell-gi#installation). You
+  need GTK 4 and the GObject introspection data that comes with it.
 
-- Make sure you're not using gi-gtk and this package with GHC 8.2.x ([read more here](https://github.com/haskell-gi/haskell-gi#%EF%B8%8F-ghc-82x-%EF%B8%8F))!
+- Version 0.8 and later target GTK 4. For GTK 3, use version 0.7 and
+  gi-gtk 3.
 
-- Once you have the GTK+ system libraries installed, it should be a
-  regular Haskell package install with Cabal, Stack, Nix, or whatever
-  floats your boat.
+- Once you have the GTK system libraries installed, it should be a
+  regular Haskell package install with Cabal, Nix, or whatever floats
+  your boat.
 
 - Executables using gi-gtk-declarative must be built with the
   `-threaded` option passed to GHC. If you are not seeing a window,

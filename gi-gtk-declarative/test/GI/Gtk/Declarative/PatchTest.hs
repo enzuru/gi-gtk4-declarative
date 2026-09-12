@@ -50,10 +50,9 @@ patchAll s1 w ws =
 patchAllInNewWindow
   :: MonadIO m => TestWidget -> [TestWidget] -> m (Either Text TestWidget)
 patchAllInNewWindow first rest =
-  runUI . bracket (Gtk.new Gtk.Window []) #destroy $ \window -> do
+  runUI . bracket (Gtk.new Gtk.Window []) Gtk.windowDestroy $ \window -> do
     firstState <- create (toTestWidget first)
-    #add window =<< someStateWidget firstState
-    Gtk.widgetShowAll window
+    Gtk.windowSetChild window . Just =<< someStateWidget firstState
     lastState <- patchAll firstState
                           (toTestWidget first)
                           (map toTestWidget rest)

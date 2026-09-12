@@ -2,7 +2,7 @@
 
 CSS classes are declared using the `classes` function in the
 attributes list. It's a set of text values that is added to the
-underlying GTK+ widget's style context as class names.
+underlying GTK widget as class names.
 
 ``` haskell
 widget
@@ -12,10 +12,12 @@ widget
   ]
 ```
 
-GTK+ supports a subset of CSS. To learn more, see the [GTK+ CSS
-Overview](https://developer.gnome.org/gtk3/stable/chap-css-overview.html).
+GTK supports a subset of CSS. To learn more, see the [GTK CSS
+Overview](https://docs.gtk.org/gtk4/css-overview.html).
 
 !!! note
 
-    To have any effect, a CSS provider needs to be set up
-    for the GDK screen. See [the CSS example](https://github.com/owickstrom/gi-gtk-declarative/blob/master/examples/CSS.hs) in the repository for a demonstration.
+    To have any effect, a CSS provider needs to be set up for the GDK
+    display. GTK 4 has no screens, so the provider is added with
+    `styleContextAddProviderForDisplay`. See [the CSS example](https://github.com/owickstrom/gi-gtk-declarative/blob/master/examples/CSS.hs)
+    in the repository for a demonstration.

@@ -56,8 +56,9 @@ numberInput customAttributes customParams = Widget
     adj  <- propsToAdjustment props
     Gtk.spinButtonSetAdjustment spin adj
     Gtk.spinButtonSetDigits spin (digits props)
-    #packStart box lbl True True 0
-    #packStart box spin False False 0
+    Gtk.widgetSetVexpand lbl True
+    #append box lbl
+    #append box spin
     return (box, spin)
 
   -- A function that computes a patch for our custom widget. Here we
@@ -97,7 +98,7 @@ view' (State currentValue) =
   bin
       Gtk.Window
       [ #title := "Hello"
-      , on #deleteEvent (const (True, Closed))
+      , on #closeRequest (True, Closed)
       , #widthRequest := 400
       , #heightRequest := 300
       ]

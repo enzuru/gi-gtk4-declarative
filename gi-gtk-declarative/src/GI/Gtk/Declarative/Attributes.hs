@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE OverloadedLabels       #-}
 {-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE TypeOperators          #-}
 
 -- | Attribute lists on declarative objects, supporting the underlying
 -- attributes from "Data.GI.Base.Attributes", along with CSS class lists, and

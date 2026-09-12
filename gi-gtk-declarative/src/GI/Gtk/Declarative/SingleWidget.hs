@@ -45,11 +45,9 @@ instance Patchable (SingleWidget widget) where
     SingleWidget ctor attrs -> do
       let collected = collectAttributes attrs
       widget' <- Gtk.new ctor (constructProperties collected)
-      Gtk.widgetShow widget'
-      sc <- Gtk.widgetGetStyleContext widget'
-      updateClasses sc mempty (collectedClasses collected)
+      updateClasses widget' mempty (collectedClasses collected)
       return
-        (SomeState (StateTreeWidget (StateTreeNode widget' sc collected ())))
+        (SomeState (StateTreeWidget (StateTreeNode widget' collected ())))
   patch (SomeState (st :: StateTree stateType w child event cs)) (SingleWidget (_ :: Gtk.ManagedPtr
       w1
     -> w1) _) (SingleWidget (ctor :: Gtk.ManagedPtr w2 -> w2) newAttributes)
@@ -65,7 +63,7 @@ instance Patchable (SingleWidget widget) where
             then Modify $ do
               let w = stateTreeWidget top
               updateProperties w oldCollectedProps newCollectedProps
-              updateClasses (stateTreeStyleContext top)
+              updateClasses w
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)
               let top' = top { stateTreeCollectedAttributes = newCollected }

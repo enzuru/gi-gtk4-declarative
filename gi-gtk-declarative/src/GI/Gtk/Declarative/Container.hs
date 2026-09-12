@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
--- | Implementations for common "Gtk.Container".
+-- | Implementations for widgets with zero or more children.
 module GI.Gtk.Declarative.Container
   ( Container
   , container
@@ -19,7 +19,10 @@ module GI.Gtk.Declarative.Container
   )
 where
 
-import           Control.Monad                  ( forM )
+import           Control.Monad                  ( forM
+                                                , unless
+                                                )
+import qualified Data.HashMap.Strict           as HashMap
 import           Data.Typeable
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
@@ -42,7 +45,6 @@ import           GI.Gtk.Declarative.Widget
 data Container widget children event where
   Container ::( Typeable widget,
       Gtk.IsWidget widget,
-      Gtk.IsContainer widget,
       Functor children
     ) =>
     (Gtk.ManagedPtr widget -> widget) ->
@@ -59,7 +61,6 @@ container
   :: ( Typeable widget
      , Functor child
      , Gtk.IsWidget widget
-     , Gtk.IsContainer widget
      , FromWidget (Container widget (Children child)) target
      , ToChildren widget parent child
      )
@@ -86,19 +87,26 @@ instance
   Patchable (Container container (Children child))
   where
 
-  create (Container ctor attrs children) = do
+  create (Container (ctor :: Gtk.ManagedPtr w -> w) attrs children) = do
     let collected = collectAttributes attrs
-    widget' <- Gtk.new ctor (constructProperties collected)
-    Gtk.widgetShow widget'
-    sc <- Gtk.widgetGetStyleContext widget'
-    updateClasses sc mempty (collectedClasses collected)
+        deferred  = deferredProperties (Proxy :: Proxy w)
+        properties = collectedProperties collected
+        later = HashMap.filterWithKey (\name _ -> name `elem` deferred)
+                                      properties
+        now   = HashMap.filterWithKey (\name _ -> name `notElem` deferred)
+                                      properties
+    widget' <- Gtk.new ctor (constructPropertiesOf now)
+    updateClasses widget' mempty (collectedClasses collected)
     childStates <- forM (unChildren children) $ \child -> do
       childState <- create child
       appendChild widget' child =<< someStateWidget childState
       return childState
+    -- The deferred properties name children, so they are set now that
+    -- the children are there.
+    unless (HashMap.null later) $ updateProperties widget' mempty later
     return
       (SomeState
-        (StateTreeContainer (StateTreeNode widget' sc collected ()) childStates)
+        (StateTreeContainer (StateTreeNode widget' collected ()) childStates)
       )
 
   patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Container _ _ oldChildren) new@(Container (ctor :: Gtk.ManagedPtr
@@ -116,7 +124,7 @@ instance
                 updateProperties containerWidget
                                  oldCollectedProps
                                  newCollectedProps
-                updateClasses (stateTreeStyleContext top)
+                updateClasses containerWidget
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)
                 let top' = top { stateTreeCollectedAttributes = newCollected }
@@ -151,7 +159,12 @@ instance
 -- FromWidget
 --
 
+-- Overlapping, and picked over the general instance in
+-- "GI.Gtk.Declarative.Widget", which also matches a container. Both
+-- wrap the value in a 'Widget', so which one is picked only decides
+-- which constraints are asked for.
 instance
+  {-# OVERLAPPING #-}
   ( Typeable widget,
     Typeable children,
     Patchable (Container widget children),

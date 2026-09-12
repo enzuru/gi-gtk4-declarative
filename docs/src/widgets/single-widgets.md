@@ -1,7 +1,7 @@
 # Single Widgets
 
 Single widgets have no child widgets. They are constructed using the
-`widget` function, given a GTK+ widget constructor (defined by the
+`widget` function, given a GTK widget constructor (defined by the
 [gi-gtk](https://hackage.haskell.org/package/gi-gtk) package) and a
 list of attributes.
 
