@@ -33,6 +33,12 @@
 -- Put the view in a 'Gtk.ScrolledWindow'. A list view does not scroll
 -- on its own.
 --
+-- A view whose rows are not a choice asks for no selection at all:
+--
+-- @
+-- (defaultListViewParams renderRow) { rows = items, selectionMode = SelectNothing }
+-- @
+--
 -- The parameters of a list view and of a column view share field
 -- names, so a module that uses both wants either
 -- @DisambiguateRecordFields@ or a qualified import of one of them.
@@ -41,6 +47,7 @@ module GI.Gtk.Declarative.ModelView.ListView
   , ListViewParams(..)
   , defaultListViewParams
   , listView
+  , SelectionMode(..)
   )
 where
 
@@ -78,18 +85,25 @@ data ListViewParams item event = ListViewParams
   -- ^ Emitted when the selected row changes, whoever changed it.
   , onActivated :: Maybe (Word -> event)
   -- ^ Emitted when a row is activated, by a double click or by Enter.
+  , selectionMode :: SelectionMode
+  -- ^ Whether a row can be selected at all. Under 'SelectNothing',
+  -- 'selected' and 'onSelected' do nothing. Changing this between
+  -- renders builds the view again, because the selection model is one
+  -- GTK object or the other.
   }
   deriving (Functor)
 
 -- | A list view showing nothing yet, rendered by this function.
 defaultListViewParams :: (item -> Widget event) -> ListViewParams item event
-defaultListViewParams render = ListViewParams { rows        = mempty
-                                              , renderRow   = render
-                                              , selected    = Nothing
-                                              , scrollTo    = Nothing
-                                              , onSelected  = Nothing
-                                              , onActivated = Nothing
-                                              }
+defaultListViewParams render = ListViewParams
+  { rows          = mempty
+  , renderRow     = render
+  , selected      = Nothing
+  , scrollTo      = Nothing
+  , onSelected    = Nothing
+  , onActivated   = Nothing
+  , selectionMode = SelectOne
+  }
 
 -- | A declarative list view.
 --
@@ -133,7 +147,8 @@ instance Patchable (ListView item) where
     slots <- createSlots view attributes
     resolveReferences view attributes
 
-    state <- newViewState (rows params)
+    state <- newViewState (selectionMode params)
+                          (rows params)
                           (HashMap.singleton theColumn (renderRow params))
     writeIORef (viewOnSelected state)  (onSelected params)
     writeIORef (viewOnActivated state) (onActivated params)
@@ -144,7 +159,7 @@ instance Patchable (ListView item) where
     -- takes the model and the factory over, and the values here would
     -- be left disowned.
     Gtk.listViewSetFactory view (Just factory)
-    Gtk.listViewSetModel view (Just (viewSelection state))
+    Gtk.listViewSetModel view . Just =<< selectionModel (viewSelection state)
     connectSelection state view
     applyCommands state view params
     runAfterCreated view attributes
@@ -159,7 +174,11 @@ instance Patchable (ListView item) where
             newCollected      = collectAttributes newAttributes
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
+            sameSelection =
+              selectionModeOf (viewSelection (stateTreeCustomState top))
+                == selectionMode newParams
         in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+              && sameSelection
               then Modify $ do
                 let view  = stateTreeWidget top
                     state = stateTreeCustomState top
@@ -238,10 +257,15 @@ connectFactory state factory = do
 
 connectSelection :: ViewState item event -> Gtk.ListView -> IO ()
 connectSelection state view = do
-  _ <- Gtk.on (viewSelection state) (Gtk.PropertyNotify #selected) $ \_pspec ->
-    do
-      position <- Gtk.singleSelectionGetSelected (viewSelection state)
-      emit state viewOnSelected (fromIntegral position)
+  case viewSelection state of
+    -- Nothing is ever selected under 'SelectNothing', so there is
+    -- nothing to hear about.
+    SelectionNone _        -> pure ()
+    SelectionOne  selection -> do
+      _ <- Gtk.on selection (Gtk.PropertyNotify #selected) $ \_pspec -> do
+        position <- Gtk.singleSelectionGetSelected selection
+        emit state viewOnSelected (fromIntegral position)
+      pure ()
   _ <- Gtk.on view #activate
     $ \position -> emit state viewOnActivated (fromIntegral position)
   pure ()
@@ -266,8 +290,11 @@ applyCommands state view params = do
   old <- readIORef (viewCommands state)
   when (commandSelected new /= commandSelected old)
     $ for_ (commandSelected new)
-    $ \position -> Gtk.singleSelectionSetSelected (viewSelection state)
-                                                  (fromIntegral position)
+    $ \position -> case viewSelection state of
+        SelectionNone _         -> pure ()
+        SelectionOne  selection -> Gtk.singleSelectionSetSelected
+          selection
+          (fromIntegral position)
   when (commandScrollTo new /= commandScrollTo old)
     $ for_ (commandScrollTo new)
     $ \position -> Gtk.listViewScrollTo view (fromIntegral position) [] Nothing

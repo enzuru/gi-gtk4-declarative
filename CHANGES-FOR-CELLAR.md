@@ -292,3 +292,62 @@ GTK has no factory for column headers. A program that wants a gesture or
 a widget of its own on a header reaches the built-in header widget by
 hand, which is what item 3 is for. This is a GTK limitation and not one
 of this library.
+
+## Two more, found while porting Cellar's grid
+
+Cellar's grid now draws through `ModelView.ColumnView`, and both of these
+turned up in the working program rather than in a test. Item 9 is not
+about Cellar.
+
+### 8. A view that selects nothing
+
+`newViewState` always builds a `Gtk.SingleSelection`, so GTK highlights a
+whole row as soon as a cell in it is clicked. A spreadsheet has no
+selected row. What is selected is a cell, and Cellar draws that itself.
+The highlight is turned off in Cellar's stylesheet at the moment, which
+fights GTK rather than asking it for what is wanted.
+
+What to do. Add a selection mode to the parameters of both views, along
+these lines:
+
+```haskell
+data SelectionMode = SelectNothing | SelectOne
+```
+
+`SelectOne` keeps today's behavior and stays the default.
+`SelectNothing` builds a `Gtk.NoSelection` instead. `viewSelection` then
+holds a `Gtk.SelectionModel` rather than a `Gtk.SingleSelection`, and
+`selected`, `onSelected`, and the selection command do nothing under
+`SelectNothing`, which the haddock has to say.
+
+Test. A property that clicks a row under `SelectNothing` and asserts
+that the model reports nothing selected.
+
+### 9. A gesture has to survive a patch
+
+This one is a defect, and it reaches every program that uses the library
+rather than only Cellar.
+
+A controller subscription cancels by calling
+`Gtk.widgetRemoveController`, and app-simple cancels and re-subscribes
+the whole tree on every state change. So a click that changes the state
+takes the `GtkGestureClick` off the widget and puts a new one back.
+`GtkGestureClick` counts presses per gesture object, and the new one has
+counted none. The second click of a double click arrives with `nPress`
+of 1, and no handler written with `onClickPressed` can ever see a double
+click, because the first click is what patches.
+
+Cellar hit this first: double-clicking a cell opens the editor, and it
+stopped opening. The grid now installs that one gesture by hand through
+`afterCreated`, which is the workaround, not the fix.
+
+What to do. Keep the controller across a patch when the attribute is
+still there, and rewrite only the callback behind it, the way
+`applyHeaderMenu` already rewrites the dispatch behind a menu of
+unchanged shape. Removing and re-adding is then only for a controller
+that has actually gone.
+
+Test. A property that sends two presses with a patch between them and
+asserts that the handler saw a second press, not two firsts.
+`EventControllerTest` already drives real presses, and
+`prop_controllers_do_not_pile_up` is the test this one sits beside.

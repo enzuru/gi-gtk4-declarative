@@ -95,6 +95,17 @@ mixedRows items = listView
     { rows = items
     }
 
+-- | Rows that cannot be selected, which is what a view whose rows are
+-- not a choice asks for.
+unselectableRows :: Vector Text -> Widget Event
+unselectableRows items = listView
+  []
+  (defaultListViewParams (\text -> widget Gtk.Label [#label := text]))
+    { rows          = items
+    , onSelected    = Just Selected
+    , selectionMode = SelectNothing
+    }
+
 selectableRows :: Vector Text -> Maybe Word -> Widget Event
 selectableRows items chosen = listView
   []
@@ -238,6 +249,77 @@ prop_selecting_a_row_emits = withTests 1 . property $ do
       Gtk.windowDestroy window
     atomically (flushTBQueue received)
   events === [Selected 2]
+
+-- | Selecting a row is what a click on it does, and the action GTK
+-- puts on the view for exactly that is how a test does it.
+--
+-- Under 'SelectNothing' the model refuses, so nothing is selected and
+-- nothing is emitted. A spreadsheet wants this: what is selected there
+-- is a cell, which the program draws itself.
+prop_a_view_that_selects_nothing_selects_nothing = withTests 1 . property $ do
+  (selectedRow, events) <- evalIO (selectThroughAction (unselectableRows rows'))
+  selectedRow === False
+  events === []
+
+-- | The same view, with the selection left as it comes, selects.
+prop_a_view_that_selects_one_selects_it = withTests 1 . property $ do
+  (selectedRow, events) <- evalIO
+    (selectThroughAction (selectableRows rows' Nothing))
+  selectedRow === True
+  events === [Selected 1]
+
+rows' :: Vector Text
+rows' = ["one", "two", "three"]
+
+-- | Ask the view to select its second row, and read back whether the
+-- model says it is selected, and what the view emitted.
+selectThroughAction :: Widget Event -> IO (Bool, [Event])
+selectThroughAction markup = do
+  received            <- newTBQueueIO 10
+  (window, view, sub) <- runUI $ do
+    state    <- create markup
+    view'    <- someStateWidget state
+    window'  <- Gtk.new Gtk.Window
+                        [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+    scroller <- Gtk.new Gtk.ScrolledWindow []
+    Gtk.scrolledWindowSetChild scroller (Just view')
+    Gtk.windowSetChild window' (Just scroller)
+    Gtk.windowPresent window'
+    sub' <- subscribe markup state (atomically . writeTBQueue received)
+    pure (window', view', sub')
+  settle
+  chosen <- runUI $ do
+    -- The action takes the position, whether to modify the selection,
+    -- and whether to extend it.
+    arguments <- toGVariant (1 :: Word32, False, False)
+    _         <- Gtk.widgetActivateAction view "list.select-item" (Just arguments)
+    listView' <- Gtk.unsafeCastTo Gtk.ListView view
+    model     <- Gtk.listViewGetModel listView'
+    maybe (pure False) (`Gtk.selectionModelIsSelected` 1) model
+  settle
+  runUI (cancel sub >> Gtk.windowDestroy window)
+  events <- atomically (flushTBQueue received)
+  pure (chosen, events)
+
+-- | The selection model is one GTK object or the other, so a view
+-- whose mode changes is built again rather than patched.
+prop_changing_the_selection_mode_builds_the_view_again =
+  withTests 1 . property $ do
+    same <- evalIO $ do
+      let first  = selectableRows rows' Nothing
+          second = unselectableRows rows'
+      (window, state, view) <- runUI $ do
+        state'  <- create first
+        view'   <- someStateWidget state'
+        window' <- Gtk.new Gtk.Window []
+        Gtk.windowSetChild window' (Just view')
+        pure (window', state', view')
+      after <- runUI $ do
+        patched <- patch' state first second
+        someStateWidget patched
+      runUI (Gtk.windowDestroy window)
+      pure (after == view)
+    same === False
 
 -- * Column views
 

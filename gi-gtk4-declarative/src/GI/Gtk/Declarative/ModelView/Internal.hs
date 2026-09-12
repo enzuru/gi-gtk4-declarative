@@ -23,6 +23,10 @@
 -- recycling worth having.
 module GI.Gtk.Declarative.ModelView.Internal
   ( ViewState(..)
+  , SelectionMode(..)
+  , Selection(..)
+  , selectionModeOf
+  , selectionModel
   , Row(..)
   , theColumn
   , Cell(..)
@@ -84,6 +88,40 @@ data Row event = Row
   -- ^ Cancels the row's subscription. Emptied on unbind.
   }
 
+-- | Whether a view lets a row be selected.
+--
+-- A list of things to choose from wants 'SelectOne'. A view whose rows
+-- are not a choice, such as a spreadsheet where what is selected is a
+-- cell rather than a row, wants 'SelectNothing': GTK then highlights
+-- nothing, rather than the program undoing a highlight in its
+-- stylesheet.
+data SelectionMode
+  = SelectNothing
+  -- ^ Nothing is ever selected. 'GI.Gtk.Declarative.ModelView.ListView.selected',
+  -- 'GI.Gtk.Declarative.ModelView.ListView.onSelected', and the
+  -- selection command all do nothing. Activating a row still works,
+  -- which is what a double click and Enter go through.
+  | SelectOne
+  -- ^ One row at a time, which is what a list view does by default.
+  deriving (Eq, Show)
+
+-- | The selection model a view holds, which is one GTK object or the
+-- other depending on the mode.
+data Selection
+  = SelectionOne Gtk.SingleSelection
+  | SelectionNone Gtk.NoSelection
+
+selectionModeOf :: Selection -> SelectionMode
+selectionModeOf = \case
+  SelectionOne  _ -> SelectOne
+  SelectionNone _ -> SelectNothing
+
+-- | The selection as the interface a list widget takes.
+selectionModel :: Selection -> IO Gtk.SelectionModel
+selectionModel = \case
+  SelectionOne  selection -> Gtk.toSelectionModel selection
+  SelectionNone selection -> Gtk.toSelectionModel selection
+
 -- | The commands a view takes: things that happen rather than things
 -- that are. They are carried out when the value given differs from the
 -- value given last time, so that a view function which repeats itself
@@ -103,7 +141,7 @@ data ViewState item event = ViewState
   { viewModel      :: Gtk.StringList
   -- ^ One stand-in object per row, holding the row's index as text.
   -- The rows themselves stay in Haskell.
-  , viewSelection  :: Gtk.SingleSelection
+  , viewSelection  :: Selection
   , viewItems      :: IORef (Vector item)
   , viewRenderers  :: IORef (HashMap Text (item -> Widget event))
   -- ^ How to render a cell, by column key. A list view keeps its one
@@ -155,16 +193,24 @@ theColumn :: Text
 theColumn = ""
 
 newViewState
-  :: Vector item
+  :: SelectionMode
+  -> Vector item
   -> HashMap Text (item -> Widget event)
   -> IO (ViewState item event)
-newViewState items renderers = do
+newViewState mode items renderers = do
   model     <- Gtk.stringListNew (Just (standIns (Vector.length items)))
   -- Built and then handed the model, rather than built from it:
   -- gtk_single_selection_new takes the model over, and the value here
   -- would be left disowned.
-  selection <- Gtk.new Gtk.SingleSelection []
-  Gtk.singleSelectionSetModel selection (Just model)
+  selection <- case mode of
+    SelectOne -> do
+      one <- Gtk.new Gtk.SingleSelection []
+      Gtk.singleSelectionSetModel one (Just model)
+      pure (SelectionOne one)
+    SelectNothing -> do
+      none <- Gtk.new Gtk.NoSelection []
+      Gtk.noSelectionSetModel none (Just model)
+      pure (SelectionNone none)
   ViewState model selection
     <$> newIORef items
     <*> newIORef renderers

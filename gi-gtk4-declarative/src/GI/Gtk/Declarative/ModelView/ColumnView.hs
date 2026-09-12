@@ -33,6 +33,9 @@
 -- Put the view in a 'Gtk.ScrolledWindow'. A column view does not
 -- scroll on its own.
 --
+-- A spreadsheet, where what is selected is a cell rather than a row,
+-- asks for no selection at all with @selectionMode = SelectNothing@.
+--
 -- GTK has no factory for column headers, so a header is the title text
 -- and nothing else. A program that wants a widget of its own up there
 -- still reaches for the header by hand.
@@ -47,6 +50,7 @@ module GI.Gtk.Declarative.ModelView.ColumnView
   , Column(..)
   , column
   , columnView
+  , SelectionMode(..)
   )
 where
 
@@ -130,19 +134,27 @@ data ColumnViewParams item event = ColumnViewParams
   -- ^ Scroll to this row, on the same terms.
   , onSelected  :: Maybe (Word -> event)
   , onActivated :: Maybe (Word -> event)
+  , selectionMode :: SelectionMode
+  -- ^ Whether a row can be selected at all. A spreadsheet, where what
+  -- is selected is a cell rather than a row, asks for
+  -- 'SelectNothing'. Changing this between renders builds the view
+  -- again, because the selection model is one GTK object or the
+  -- other.
   }
   deriving (Functor)
 
 -- | A column view showing no rows yet, with these columns.
 defaultColumnViewParams
   :: Vector (Column item event) -> ColumnViewParams item event
-defaultColumnViewParams theColumns = ColumnViewParams { rows        = mempty
-                                                      , columns     = theColumns
-                                                      , selected    = Nothing
-                                                      , scrollTo    = Nothing
-                                                      , onSelected  = Nothing
-                                                      , onActivated = Nothing
-                                                      }
+defaultColumnViewParams theColumns = ColumnViewParams
+  { rows          = mempty
+  , columns       = theColumns
+  , selected      = Nothing
+  , scrollTo      = Nothing
+  , onSelected    = Nothing
+  , onActivated   = Nothing
+  , selectionMode = SelectOne
+  }
 
 -- | What a column view keeps between patches: the row machinery every
 -- view has, and the columns.
@@ -200,7 +212,9 @@ instance Patchable (ColumnView item) where
     slots <- createSlots view attributes
     resolveReferences view attributes
 
-    base  <- newViewState (rows params) (renderers (columns params))
+    base  <- newViewState (selectionMode params)
+                          (rows params)
+                          (renderers (columns params))
     state <- ColumnViewState base <$> newIORef mempty <*> newIORef
       (handlers (columns params))
     writeIORef (viewOnSelected base)  (onSelected params)
@@ -208,7 +222,7 @@ instance Patchable (ColumnView item) where
 
     -- Set rather than passed to the constructor, which would take the
     -- model over and leave the value here disowned.
-    Gtk.columnViewSetModel view (Just (viewSelection base))
+    Gtk.columnViewSetModel view . Just =<< selectionModel (viewSelection base)
     connectSelection base view
     patchColumns view state (columns params)
     applyCommands base view params
@@ -224,7 +238,12 @@ instance Patchable (ColumnView item) where
             newCollected      = collectAttributes newAttributes
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
+            sameSelection =
+              selectionModeOf
+                  (viewSelection (columnBase (stateTreeCustomState top)))
+                == selectionMode newParams
         in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+              && sameSelection
               then Modify $ do
                 let view  = stateTreeWidget top
                     state = stateTreeCustomState top
@@ -442,10 +461,15 @@ menuPrefix key = "column-menu-" <> Text.map plain key
 
 connectSelection :: ViewState item event -> Gtk.ColumnView -> IO ()
 connectSelection state view = do
-  _ <- Gtk.on (viewSelection state) (Gtk.PropertyNotify #selected) $ \_pspec ->
-    do
-      position <- Gtk.singleSelectionGetSelected (viewSelection state)
-      emit state viewOnSelected (fromIntegral position)
+  case viewSelection state of
+    -- Nothing is ever selected under 'SelectNothing', so there is
+    -- nothing to hear about.
+    SelectionNone _         -> pure ()
+    SelectionOne  selection -> do
+      _ <- Gtk.on selection (Gtk.PropertyNotify #selected) $ \_pspec -> do
+        position <- Gtk.singleSelectionGetSelected selection
+        emit state viewOnSelected (fromIntegral position)
+      pure ()
   _ <- Gtk.on view #activate
     $ \position -> emit state viewOnActivated (fromIntegral position)
   pure ()
@@ -471,8 +495,11 @@ applyCommands state view params = do
   old <- readIORef (viewCommands state)
   when (commandSelected new /= commandSelected old)
     $ for_ (commandSelected new)
-    $ \position -> Gtk.singleSelectionSetSelected (viewSelection state)
-                                                  (fromIntegral position)
+    $ \position -> case viewSelection state of
+        SelectionNone _         -> pure ()
+        SelectionOne  selection -> Gtk.singleSelectionSetSelected
+          selection
+          (fromIntegral position)
   when (commandScrollTo new /= commandScrollTo old)
     $ for_ (commandScrollTo new)
     $ \position ->
