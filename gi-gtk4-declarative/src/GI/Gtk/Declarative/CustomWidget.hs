@@ -73,6 +73,7 @@ instance
     updateClasses widget mempty (collectedClasses collected)
     slots <- createSlots widget (customAttributes custom)
     resolveReferences widget (customAttributes custom)
+    runAfterCreated widget (customAttributes custom)
     pure
       (SomeState
         (StateTreeWidget (StateTreeNode widget collected internalState slots))

@@ -122,3 +122,19 @@ setter from gi-gtk:
 ``` haskell
 reference Gtk.searchBarSetKeyCaptureWidget "the-window"
 ```
+
+## Reaching the Widget
+
+Some things GTK offers have no declarative form at all: adding a style
+provider to the display, taking the keyboard focus, putting a gesture on
+a widget the library does not hand you. `afterCreated` is the way out
+for those. It takes an action on the underlying GTK widget:
+
+``` haskell
+widget Label [afterCreated (\label -> Gtk.widgetGrabFocus label)]
+```
+
+It runs once, when the widget has been built and its children are in
+place, and a patch does not run it again. So whatever it does has to be
+something that survives the widget being patched, or something the
+action itself keeps an eye on.

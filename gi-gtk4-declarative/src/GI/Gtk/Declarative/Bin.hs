@@ -166,6 +166,7 @@ instance Patchable (Bin parent) where
     childState  <- create child
     childWidget <- someStateWidget childState
     setBinChild widget' (Just childWidget)
+    runAfterCreated widget' attrs
     return
       (SomeState
         (StateTreeBin (StateTreeNode widget' collected () slots) childState)

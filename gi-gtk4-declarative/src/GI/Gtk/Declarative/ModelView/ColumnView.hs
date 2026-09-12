@@ -191,6 +191,7 @@ instance Patchable (ColumnView item) where
     connectSelection base view
     patchColumns view state (columns params)
     applyCommands base view params
+    runAfterCreated view attributes
 
     pure
       (SomeState (StateTreeWidget (StateTreeNode view collected state slots)))
