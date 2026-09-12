@@ -4,11 +4,11 @@
 {-# LANGUAGE RankNTypes     #-}
 -- | The 'StateTree' and 'SomeState' form a "shadow state"
 -- representation, used in patching. Declarative widgets can return,
--- and later on reuse, its underlying GTK+ widget, collected
--- properties and classes, style context, custom internal state, and
--- child states. This reduces the need for querying GTK+ widgets
--- excessively, and recalculating/resetting, greatly improving the
--- performance of patching.
+-- and later on reuse, its underlying GTK widget, collected
+-- properties and classes, custom internal state, and child states.
+-- This reduces the need for querying GTK widgets excessively, and
+-- recalculating/resetting, greatly improving the performance of
+-- patching.
 module GI.Gtk.Declarative.State where
 
 import           Data.Typeable
@@ -30,7 +30,7 @@ data SomeState where
     -> SomeState
 
 -- | The types of state trees that are available, matching the types
--- of GTK+ widgets (single widget, bin, and container.)
+-- of GTK widgets (single widget, bin, and container.)
 data StateType = WidgetState | BinState | ContainerState
 
 -- | A state tree for a specific 'widget'. This is built up recursively
@@ -44,9 +44,7 @@ data StateTree (stateType :: StateType) widget child event customState where
     -> SomeState
     -> StateTree 'BinState widget child event customState
   StateTreeContainer
-    :: ( Gtk.IsContainer widget
-       , IsContainer widget child
-       )
+    :: IsContainer widget child
     => !(StateTreeNode widget event customState)
     -> Vector SomeState
     -> StateTree 'ContainerState widget child event customState
@@ -54,7 +52,6 @@ data StateTree (stateType :: StateType) widget child event customState where
 -- | The common structure for all state tree nodes.
 data StateTreeNode widget event customState = StateTreeNode
   { stateTreeWidget              :: !widget
-  , stateTreeStyleContext        :: !Gtk.StyleContext
   , stateTreeCollectedAttributes :: !(Collected widget event)
   , stateTreeCustomState         :: customState
   }
@@ -69,10 +66,10 @@ stateTreeNode (StateTreeWidget s     ) = s
 stateTreeNode (StateTreeBin       s _) = s
 stateTreeNode (StateTreeContainer s _) = s
 
--- | Get the specific type of GTK+ widget of a state tree.
+-- | Get the specific type of GTK widget of a state tree.
 stateTreeNodeWidget :: StateTree stateType widget child event customState -> widget
 stateTreeNodeWidget = stateTreeWidget . stateTreeNode
 
--- | Get the GTK+ widget, cast to 'Gtk.Widget', of /some/ state tree.
+-- | Get the GTK widget, cast to 'Gtk.Widget', of /some/ state tree.
 someStateWidget :: SomeState -> IO Gtk.Widget
 someStateWidget (SomeState st) = Gtk.toWidget (stateTreeNodeWidget st)

@@ -10,7 +10,7 @@ import           Data.Functor                   ( (<&>) )
 import           Data.Text
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
-import qualified GI.Gdk                        as Gdk
+import qualified GI.GLib                       as GLib
 import qualified GI.GLib.Constants             as GLib
 
 import           GI.Gtk                         ( Box(..)
@@ -34,7 +34,7 @@ testPatch
 testPatch state oldView newView = case patch state oldView newView of
   Modify ma -> do
     ret <- newEmptyMVar
-    void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+    void . GLib.idleAdd GLib.PRIORITY_DEFAULT $ do
       ma >>= putMVar ret
       return False
     takeMVar ret
@@ -42,10 +42,12 @@ testPatch state oldView newView = case patch state oldView newView of
 
 main :: IO ()
 main = do
-  _ <- Gtk.init Nothing
+  Gtk.init
+  mainLoop <- GLib.mainLoopNew Nothing False
   let initialView = testView (Vector.enumFromN 1 100)
   initialState <- create initialView
-  #showAll =<< someStateWidget initialState
+  window       <- Gtk.unsafeCastTo Gtk.Window =<< someStateWidget initialState
+  Gtk.windowPresent window
   _ <- forkOS $ do
     defaultMain
       [ bgroup
@@ -58,5 +60,5 @@ main = do
             void $ testPatch s1 initialView (testView (Vector.enumFromN 2 101))
           ]
       ]
-    Gtk.mainQuit
-  Gtk.main
+    GLib.mainLoopQuit mainLoop
+  GLib.mainLoopRun mainLoop

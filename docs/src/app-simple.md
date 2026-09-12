@@ -69,12 +69,19 @@ main = void $ run App
 
 As `run` returns the last state, we ignore it using `void`. Accessing
 the last state can be useful if you want to embed a declarative `App`
-inside a larger GTK+ application.
+inside a larger GTK application.
 
 !!! note
 
-    If you need more control over GTK+ initialization and the setup, for
-    instance when using [CSS](attributes/css.md), use the `runLoop` function.
+    If you need more control over the GTK setup, for instance when using
+    [CSS](attributes/css.md), use the `runLoop` function. You then call
+    `Gtk.init` and run a `GLib.MainLoop` yourself, and run `runLoop` in
+    another thread. GTK 4 has no `Gtk.main`, so the loop is a
+    `GLib.MainLoop` that you create, run, and quit.
+
+The window type of an `App` must be a GTK window, such as `Gtk.Window`
+or `Gtk.ApplicationWindow`. The application presents it when it starts,
+and destroys it when the view is replaced by one of another type.
 
 [gi-gtk-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
 [Pipes]: http://hackage.haskell.org/package/pipes

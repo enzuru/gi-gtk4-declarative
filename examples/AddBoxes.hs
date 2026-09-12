@@ -30,7 +30,7 @@ addBoxesView State {..} =
   bin
       Window
       [ #title := "AddBoxes"
-      , on #deleteEvent (const (True, Closed))
+      , on #closeRequest (True, Closed)
       , #widthRequest := 400
       , #heightRequest := 300
       ]

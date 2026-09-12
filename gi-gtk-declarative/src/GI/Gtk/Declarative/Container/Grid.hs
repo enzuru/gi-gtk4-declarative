@@ -23,7 +23,7 @@ import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.Widget
 
--- | Describes a child widget to be added with to a 'Grid'.
+-- | Describes a child widget to be added to a 'Grid'.
 data GridChild event =
   GridChild
     { properties :: GridChildProperties
@@ -31,7 +31,7 @@ data GridChild event =
     }
   deriving (Functor)
 
--- | Values used when /packing/ child widgets into grids.
+-- | Values used when attaching child widgets to grids.
 data GridChildProperties =
   GridChildProperties
     { height     :: Int32
@@ -66,6 +66,6 @@ instance IsContainer Gtk.Grid GridChild where
           properties
     Gtk.gridAttach grid widget' leftAttach topAttach width height
   replaceChild grid gridChild' _i old new = do
-    Gtk.widgetDestroy old
+    Gtk.gridRemove grid old
     appendChild grid gridChild' new
-
+  removeChild = Gtk.gridRemove

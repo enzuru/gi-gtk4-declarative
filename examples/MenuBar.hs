@@ -7,12 +7,10 @@ module MenuBar where
 
 import           Control.Monad                  ( void )
 import           Data.Text                      ( Text )
-import           GI.Gtk                         ( ApplicationWindow(..)
-                                                , Box(..)
+import           GI.Gtk                         ( Box(..)
                                                 , Label(..)
-                                                , MenuBar(..)
-                                                , MenuItem(..)
                                                 , Orientation(..)
+                                                , Window(..)
                                                 )
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.App.Simple
@@ -21,32 +19,27 @@ newtype State = Message Text
 
 data Event = Open | Save | Help | Closed
 
-view' :: State -> AppView ApplicationWindow Event
+view' :: State -> AppView Window Event
 view' (Message msg) =
   bin
-      ApplicationWindow
+      Window
       [ #title := "MenuBar"
-      , on #deleteEvent (const (True, Closed))
+      , on #closeRequest (True, Closed)
       , #widthRequest := 400
       , #heightRequest := 300
       ]
     $ container
         Box
         [#orientation := OrientationVertical]
-        [ container
-          MenuBar
+        [ BoxChild defaultBoxChildProperties { fill = True } $ menuBar
           []
           [ subMenu
             "File"
-            [ menuItem MenuItem [on #activate Open]
-              $ widget Label [#label := "Open"]
-            , menuItem MenuItem [on #activate Save]
-              $ widget Label [#label := "Save"]
+            [ menuSection Nothing [menuItem "Open" Open, menuItem "Save" Save]
             ]
-          , menuItem MenuItem [on #activate Help]
-            $ widget Label [#label := "Help"]
+          , subMenu "Help" [menuItem "Help" Help]
           ]
-        , BoxChild defaultBoxChildProperties { expand = True }
+        , BoxChild defaultBoxChildProperties { expand = True, fill = True }
           $ widget Label [#label := msg]
         ]
 

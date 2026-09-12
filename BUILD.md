@@ -1,37 +1,57 @@
 # Build Instructions
 
-To hack on and build these libraries, using newer versions of Cabal,
-run:
+## With Nix
+
+The flake in this repository gives you GHC with the gi-gtk 4 bindings,
+the GTK 4 libraries they load, and a nested X server for the tests:
 
 ```
-cabal new-build all
+nix develop
 ```
 
-Or using Stack:
+Inside that shell, the Makefile builds and tests everything:
 
 ```
-stack build
+make build      # typecheck the two libraries
+make examples   # build the example programs
+make check      # run both test suites under Xvfb
 ```
 
-You may also use Nix:
+## With Cabal
+
+You need GTK 4 and the GObject introspection data for it. Follow [the
+gi-gtk README](https://github.com/haskell-gi/haskell-gi#installation) to
+install them, then run:
 
 ```
-nix-shell
+cabal build all
 ```
 
-The documentation is built using [MkDocs](https://www.mkdocs.org/).
+The test suites need a display. If you do not have one, run them under
+Xvfb:
+
+```
+xvfb-run cabal test all
+```
+
+## Documentation
+
+The documentation is built with [MkDocs](https://www.mkdocs.org/).
 
 ## Examples
 
 There are some examples in [examples/](examples/), using the
 `GI.Gtk.Declarative.App.Simple` architecture, which also showcase
-`GI.Gtk.Declarative` (the markup library.)
+`GI.Gtk.Declarative` (the markup library).
 
-As an example, to run the `examples/Hello.hs` example, follow these steps
-(assuming you have a recent version of Cabal):
+To run the `examples/Hello.hs` example:
 
 ``` shell
-cabal new-run example Hello
+cabal run example Hello
 ```
 
-You might also build in a Cabal sandbox, using Stack, or with Nix.
+Or, inside the Nix shell:
+
+``` shell
+make examples && .build/example Hello
+```

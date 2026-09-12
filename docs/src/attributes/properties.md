@@ -1,10 +1,10 @@
 # Properties
 
-GTK+ widgets, being built on the GObject framework, have
+GTK widgets, being built on the GObject framework, have
 properties. These are key/value pairs that can be get and set
 generically. This package uses `OverloadedLabels` to declare
-properties and their values for GTK+ widgets.  There are many
-properties available for GTK+ widgets. To find them, use the
+properties and their values for GTK widgets.  There are many
+properties available for GTK widgets. To find them, use the
 [gi-gtk][] documentation. Each widget module lists its properties in
 the bottom of the Haddock page.
 

@@ -1,3 +1,8 @@
+-- The `Gtk.IsWindow window` constraints below are the ones a gi-gtk
+-- user writes; GHC would rather they were spelled out as descendant
+-- constraints, which would say the same thing less clearly.
+{-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
+
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase       #-}
 {-# LANGUAGE RecordWildCards  #-}
@@ -23,8 +28,7 @@ import           Control.Exception              ( SomeException,
                                                   throwIO)
 import           Control.Monad
 import           Data.Typeable
-import qualified GI.Gdk                        as Gdk
-import qualified GI.GLib.Constants             as GLib
+import qualified GI.GLib                       as GLib
 import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
@@ -52,7 +56,7 @@ data App window state event =
     }
 
 -- | The top-level widget for the 'view' function of an 'App',
--- requiring a GTK+ 'Window'.
+-- requiring a GTK 'Gtk.Window'.
 type AppView window event = Bin window event
 
 -- | The result of applying the 'update' function, deciding if and how to
@@ -64,9 +68,9 @@ data Transition state event =
   -- | Exit the application.
   | Exit
 
--- | An exception thrown by the 'run' function when gtk's main loop exits
--- before event/state handling which should never happen but can be caused
--- by user code calling 'Gtk.mainQuit'
+-- | An exception thrown by the 'run' function when the GLib main loop
+-- exits before event/state handling, which should never happen but can
+-- be caused by user code quitting the loop.
 data GtkMainExitedException =
   GtkMainExitedException String deriving (Typeable, Show)
 
@@ -74,37 +78,42 @@ instance Exception GtkMainExitedException
 
 -- | Initialize GTK and run the application in it. This is a
 -- convenience function that is highly recommended. If you need more
--- flexibility, e.g. to set up GTK+ yourself, use 'runLoop' instead.
+-- flexibility, e.g. to set up GTK yourself, use 'runLoop' instead.
 run
-  :: Gtk.IsBin window
+  :: (IsBin window, Gtk.IsWindow window)
   => App window state event      -- ^ Application to run
   -> IO state
 run app = do
   assertRuntimeSupportsBoundThreads
-  void $ Gtk.init Nothing
+  Gtk.init
 
   -- If any exception happen in `runLoop`, it will be re-thrown here
   -- and the application will be killed.
-  main <- Async.async Gtk.main
-  runLoop app `finally` (Gtk.mainQuit >> Async.wait main)
+  mainLoop <- GLib.mainLoopNew Nothing False
+  main     <- Async.async (GLib.mainLoopRun mainLoop)
+  runLoop app `finally` (GLib.mainLoopQuit mainLoop >> Async.wait main)
 
 -- | Run an 'App'. This IO action will loop, so run it in a separate thread
 -- using 'async' if you're calling it before the GTK main loop.
 -- Note: the following example take care of exception raised in 'runLoop'.
 --
 -- @
---     void $ Gtk.init Nothing
---     main <- Async.async Gtk.main
---     runLoop app `finally` (Gtk.mainQuit >> Async.wait main)
+--     Gtk.init
+--     mainLoop <- GLib.mainLoopNew Nothing False
+--     main <- Async.async (GLib.mainLoopRun mainLoop)
+--     runLoop app `finally` (GLib.mainLoopQuit mainLoop >> Async.wait main)
 -- @
-runLoop :: Gtk.IsBin window => App window state event -> IO state
+runLoop
+  :: (IsBin window, Gtk.IsWindow window)
+  => App window state event
+  -> IO state
 runLoop App {..} = do
   let firstMarkup = view initialState
 
   events                     <- newChan
   (firstState, subscription) <- do
     firstState <- runUI (create firstMarkup)
-    runUI (Gtk.widgetShowAll =<< someStateWidget firstState)
+    runUI (presentWindow firstState)
     sub <- subscribe firstMarkup firstState (publishEvent events)
     return (firstState, sub)
 
@@ -134,10 +143,10 @@ runLoop App {..} = do
             sub      <- subscribe newMarkup newState (publishEvent events)
             return (newState, sub)
           Replace createNew -> runUI $ do
-            Gtk.widgetDestroy =<< someStateWidget oldState
+            destroyWindow oldState
             cancel oldSubscription
             newState <- createNew
-            Gtk.widgetShowAll =<< someStateWidget newState
+            presentWindow newState
             sub <- subscribe newMarkup newState (publishEvent events)
             return (newState, sub)
           Keep -> return (oldState, oldSubscription)
@@ -157,6 +166,24 @@ runLoop App {..} = do
 
         loop newState newMarkup events sub newModel
       Exit -> return oldModel
+
+-- | Show the application's top-level window. GTK 4 widgets are visible
+-- by default, but a window still has to be presented.
+presentWindow :: SomeState -> IO ()
+presentWindow state = do
+  widget' <- someStateWidget state
+  Gtk.castTo Gtk.Window widget' >>= \case
+    Just window -> Gtk.windowPresent window
+    Nothing     -> Gtk.widgetSetVisible widget' True
+
+-- | Take down the application's top-level window. GTK 4 has no
+-- @gtk_widget_destroy@; a window is closed with @gtk_window_destroy@.
+destroyWindow :: SomeState -> IO ()
+destroyWindow state = do
+  widget' <- someStateWidget state
+  Gtk.castTo Gtk.Window widget' >>= \case
+    Just window -> Gtk.windowDestroy window
+    Nothing     -> Gtk.widgetUnparent widget'
 
 -- | Assert that the program was linked using the @-threaded@ flag, to
 -- enable the threaded runtime required by this module.
@@ -188,7 +215,7 @@ runUI_ :: IO () -> IO ()
 runUI_ ma = do
   tId <- myThreadId
 
-  void . Gdk.threadsAddIdle GLib.PRIORITY_DEFAULT $ do
+  void . GLib.idleAdd GLib.PRIORITY_DEFAULT $ do
     -- Any exception in the gtk ui thread will be rethrown in the calling thread.
     -- This ensure that this exception won't terminate the application without any control.
     ma `catch` throwTo @SomeException tId

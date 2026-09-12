@@ -4,15 +4,16 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v12
-      - uses: cachix/cachix-action@v8
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
         with:
-          name: gi-gtk-declarative
-          signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-      - name: 'Build and Test Libraries and Examples'
-        run: nix-build -j2 --arg doCheck true
-      - name: 'Build Docs'
-        run: nix-shell -j2 --run 'cd docs && mkdocs build'
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - name: 'Typecheck the libraries'
+        run: nix develop --command make build
+      - name: 'Build the examples'
+        run: nix develop --command make examples
+      - name: 'Run the tests'
+        run: nix develop --command make check

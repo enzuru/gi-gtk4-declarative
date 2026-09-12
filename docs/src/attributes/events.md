@@ -1,6 +1,6 @@
 # Events
 
-To react to user events in the graphical user interface, GTK+ lets you
+To react to user events in the graphical user interface, GTK lets you
 connect callbacks to _signals_. This package takes a more declarative
 approach, and talks about _events_ rather than signals. Widgets emit
 _event values_, and these values can be mapped and transformed into
@@ -8,7 +8,7 @@ other values as the event propagates up the tree of widgets.
 
 ## Pure Event Handlers
 
-When working with GTK+ widgets, we transform signals into event values
+When working with GTK widgets, we transform signals into event values
 using event handlers. Much like [properties](properties.md), event
 handlers for signals are declared in the attributes list, using the
 `on` function.
@@ -25,7 +25,7 @@ counterButton =
       ]
 ```
 
-Some signals in GTK+ carry extra information, supplied as extra
+Some signals in GTK carry extra information, supplied as extra
 parameters to signal callbacks. This is supported in
 gi-gtk-declarative as well, by passing those parameters to the event
 handler function.
@@ -117,7 +117,7 @@ type ImpureEventHandler =
 
 ## Signal Handler Return Values
 
-Some signal callbacks in GTK+ have return values other than `()`. It's
+Some signal callbacks in GTK have return values other than `()`. It's
 common that callbacks return a `Bool` value, determining whether to
 propagate the event further or not. One example is
 `WidgetFocusCallback`, the callback for the `focus` signal:

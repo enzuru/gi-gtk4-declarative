@@ -25,7 +25,7 @@ view' s =
   bin
       Window
       [ #title := "Hello"
-      , on #deleteEvent (const (True, Closed))
+      , on #closeRequest (True, Closed)
       , #widthRequest := 400
       , #heightRequest := 300
       ]

@@ -13,12 +13,12 @@ module GI.Gtk.Declarative.Attributes.Collected
   , canBeModifiedTo
   , collectAttributes
   , constructProperties
+  , constructPropertiesOf
   , updateProperties
   , updateClasses
   )
 where
 
-import           Data.Foldable
 import qualified Data.GI.Base.Attributes       as GI
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.HashMap.Strict            ( HashMap )
@@ -100,9 +100,14 @@ collectAttributes = foldl' go mempty
 -- properties, used when creating new widgets.
 constructProperties
   :: Collected widget event -> [GI.AttrOp widget 'GI.AttrConstruct]
-constructProperties c = map
+constructProperties = constructPropertiesOf . collectedProperties
+
+-- | As 'constructProperties', for a subset of a widget's properties.
+constructPropertiesOf
+  :: CollectedProperties widget -> [GI.AttrOp widget 'GI.AttrConstruct]
+constructPropertiesOf properties = map
   (\(CollectedProperty attr value) -> attr Gtk.:= value)
-  (HashMap.elems (collectedProperties c))
+  (HashMap.elems properties)
 
 -- | Update the changed properties of a widget, based on the old and new
 -- collected properties.
@@ -129,11 +134,12 @@ updateProperties (widget' :: widget) oldProps newProps = do
       Just Refl | v1 /= v2 -> pure (attr Gtk.:= v2)
       _                    -> mempty
 
--- | Update the style context's classes to only include the new set of
+-- | Update the widget's CSS classes to only include the new set of
 -- classes (last argument).
-updateClasses :: Gtk.StyleContext -> ClassSet -> ClassSet -> IO ()
-updateClasses ctx old new = do
+updateClasses
+  :: Gtk.IsWidget widget => widget -> ClassSet -> ClassSet -> IO ()
+updateClasses widget' old new = do
   let toAdd    = HashSet.difference new old
       toRemove = HashSet.difference old new
-  mapM_ (Gtk.styleContextAddClass ctx)    toAdd
-  mapM_ (Gtk.styleContextRemoveClass ctx) toRemove
+  mapM_ (Gtk.widgetAddCssClass widget')    toAdd
+  mapM_ (Gtk.widgetRemoveCssClass widget') toRemove

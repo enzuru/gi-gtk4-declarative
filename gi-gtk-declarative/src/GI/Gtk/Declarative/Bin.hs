@@ -10,10 +10,17 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
--- | A declarative representation of 'Gtk.Bin' in GTK.
+-- | A declarative representation of a widget with exactly one child.
+--
+-- GTK 4 removed @GtkBin@, and every widget that holds a single child
+-- now has a setter of its own (@gtk_window_set_child@,
+-- @gtk_frame_set_child@, and so on.) The 'IsBin' class below names that
+-- pair of operations, and the instances in this module are what make a
+-- widget usable with 'bin'.
 module GI.Gtk.Declarative.Bin
   ( Bin(..)
   , bin
+  , IsBin(..)
   )
 where
 
@@ -29,14 +36,98 @@ import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.Widget
 
+-- | A widget that holds exactly one child widget, and the two
+-- operations needed to patch that child.
+class IsBin widget where
+  -- | Set (or, with 'Nothing', unset) the child widget. The previous
+  -- child, if there was one, is unparented.
+  setBinChild :: widget -> Maybe Gtk.Widget -> IO ()
+  -- | Get the current child widget, if there is one.
+  getBinChild :: widget -> IO (Maybe Gtk.Widget)
 
--- | Declarative version of a /bin/ widget, i.e. a widget with exactly one
--- child.
+instance IsBin Gtk.Window where
+  setBinChild = Gtk.windowSetChild
+  getBinChild = Gtk.windowGetChild
+
+instance IsBin Gtk.ApplicationWindow where
+  setBinChild = Gtk.windowSetChild
+  getBinChild = Gtk.windowGetChild
+
+instance IsBin Gtk.Frame where
+  setBinChild = Gtk.frameSetChild
+  getBinChild = Gtk.frameGetChild
+
+instance IsBin Gtk.AspectFrame where
+  setBinChild = Gtk.aspectFrameSetChild
+  getBinChild = Gtk.aspectFrameGetChild
+
+instance IsBin Gtk.Button where
+  setBinChild = Gtk.buttonSetChild
+  getBinChild = Gtk.buttonGetChild
+
+instance IsBin Gtk.ToggleButton where
+  setBinChild = Gtk.buttonSetChild
+  getBinChild = Gtk.buttonGetChild
+
+instance IsBin Gtk.LinkButton where
+  setBinChild = Gtk.buttonSetChild
+  getBinChild = Gtk.buttonGetChild
+
+instance IsBin Gtk.CheckButton where
+  setBinChild = Gtk.checkButtonSetChild
+  getBinChild = Gtk.checkButtonGetChild
+
+instance IsBin Gtk.MenuButton where
+  setBinChild = Gtk.menuButtonSetChild
+  getBinChild = Gtk.menuButtonGetChild
+
+instance IsBin Gtk.Expander where
+  setBinChild = Gtk.expanderSetChild
+  getBinChild = Gtk.expanderGetChild
+
+instance IsBin Gtk.Revealer where
+  setBinChild = Gtk.revealerSetChild
+  getBinChild = Gtk.revealerGetChild
+
+instance IsBin Gtk.ScrolledWindow where
+  setBinChild = Gtk.scrolledWindowSetChild
+  getBinChild = Gtk.scrolledWindowGetChild
+
+instance IsBin Gtk.Viewport where
+  setBinChild = Gtk.viewportSetChild
+  getBinChild = Gtk.viewportGetChild
+
+instance IsBin Gtk.Popover where
+  setBinChild = Gtk.popoverSetChild
+  getBinChild = Gtk.popoverGetChild
+
+instance IsBin Gtk.ListBoxRow where
+  setBinChild = Gtk.listBoxRowSetChild
+  getBinChild = Gtk.listBoxRowGetChild
+
+instance IsBin Gtk.FlowBoxChild where
+  setBinChild = Gtk.flowBoxChildSetChild
+  getBinChild = Gtk.flowBoxChildGetChild
+
+instance IsBin Gtk.SearchBar where
+  setBinChild = Gtk.searchBarSetChild
+  getBinChild = Gtk.searchBarGetChild
+
+instance IsBin Gtk.WindowHandle where
+  setBinChild = Gtk.windowHandleSetChild
+  getBinChild = Gtk.windowHandleGetChild
+
+-- | The 'Gtk.Overlay' /main/ child. Widgets drawn on top of it are
+-- added with "GI.Gtk.Declarative.Container.Overlay" instead.
+instance IsBin Gtk.Overlay where
+  setBinChild = Gtk.overlaySetChild
+  getBinChild = Gtk.overlayGetChild
+
+-- | Declarative version of a widget with exactly one child.
 data Bin widget event where
   Bin
     ::( Typeable widget
-       , Gtk.IsContainer widget
-       , Gtk.IsBin widget
+       , IsBin widget
        , Gtk.IsWidget widget
        )
     => (Gtk.ManagedPtr widget -> widget)
@@ -47,17 +138,16 @@ data Bin widget event where
 instance Functor (Bin widget) where
   fmap f (Bin ctor attrs child) = Bin ctor (fmap f <$> attrs) (fmap f child)
 
--- | Construct a /bin/ widget, i.e. a widget with exactly one child.
+-- | Construct a widget with exactly one child.
 bin
   :: ( Typeable widget
-     , Gtk.IsContainer widget
-     , Gtk.IsBin widget
+     , IsBin widget
      , Gtk.IsWidget widget
      , FromWidget (Bin widget) target
      )
-  => (Gtk.ManagedPtr widget -> widget) -- ^ A bin widget constructor from the underlying gi-gtk library.
+  => (Gtk.ManagedPtr widget -> widget) -- ^ A widget constructor from the underlying gi-gtk library.
   -> Vector (Attribute widget event)   -- ^ List of 'Attribute's.
-  -> Widget event                       -- ^ The bin's child widget
+  -> Widget event                      -- ^ The child widget
   -> target event                      -- ^ The target, whose type is decided by 'FromWidget'.
 bin ctor attrs = fromWidget . Bin ctor attrs
 
@@ -65,23 +155,17 @@ bin ctor attrs = fromWidget . Bin ctor attrs
 -- Patchable
 --
 
-instance (Gtk.IsBin parent) => Patchable (Bin parent) where
+instance Patchable (Bin parent) where
   create (Bin (ctor :: Gtk.ManagedPtr w -> w) attrs child) = do
     let collected = collectAttributes attrs
     widget' <- Gtk.new ctor (constructProperties collected)
-    Gtk.widgetShow widget'
-
-    sc <- Gtk.widgetGetStyleContext widget'
-    updateClasses sc mempty (collectedClasses collected)
+    updateClasses widget' mempty (collectedClasses collected)
 
     childState  <- create child
     childWidget <- someStateWidget childState
-    maybe (pure ()) Gtk.widgetDestroy =<< Gtk.binGetChild widget'
-    Gtk.containerAdd widget' childWidget
+    setBinChild widget' (Just childWidget)
     return
-      (SomeState
-        (StateTreeBin (StateTreeNode widget' sc collected ()) childState)
-      )
+      (SomeState (StateTreeBin (StateTreeNode widget' collected ()) childState))
 
   patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Bin _ _ oldChild) (Bin (ctor :: Gtk.ManagedPtr
       w2
@@ -98,7 +182,7 @@ instance (Gtk.IsBin parent) => Patchable (Bin parent) where
             then Modify $ do
               binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
               updateProperties binWidget oldCollectedProps newCollectedProps
-              updateClasses (stateTreeStyleContext top)
+              updateClasses binWidget
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)
 
@@ -106,13 +190,10 @@ instance (Gtk.IsBin parent) => Patchable (Bin parent) where
               case patch oldChildState oldChild newChild of
                 Modify  modify    -> SomeState . StateTreeBin top' <$> modify
                 Replace createNew -> do
-                  Gtk.widgetDestroy =<< someStateWidget oldChildState
                   newChildState <- createNew
                   childWidget   <- someStateWidget newChildState
-                  Gtk.widgetShow childWidget
-                  maybe (pure ()) Gtk.widgetDestroy
-                    =<< Gtk.binGetChild binWidget
-                  Gtk.containerAdd binWidget childWidget
+                  -- Setting the new child unparents the old one.
+                  setBinChild binWidget (Just childWidget)
                   return (SomeState (StateTreeBin top' newChildState))
                 Keep -> return (SomeState st)
             else Replace (create (Bin ctor newAttributes newChild))
@@ -122,7 +203,7 @@ instance (Gtk.IsBin parent) => Patchable (Bin parent) where
 -- EventSource
 --
 
-instance Gtk.IsBin parent => EventSource (Bin parent) where
+instance EventSource (Bin parent) where
   subscribe (Bin ctor props child) (SomeState st) cb = case st of
     StateTreeBin top childState -> do
       binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)

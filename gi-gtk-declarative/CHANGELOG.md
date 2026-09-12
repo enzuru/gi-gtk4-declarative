@@ -1,3 +1,23 @@
+* 0.8.0
+    - Port to GTK 4 (gi-gtk 4.x). This is a breaking release; use 0.7 for GTK 3.
+    - `bin` now works with the new `IsBin` class of this library, with
+      instances for the GTK 4 widgets that hold a single child, as GTK 4
+      removed `GtkBin`.
+    - `IsContainer` gained a `removeChild` method, as GTK 4 removed
+      `GtkContainer` and `gtk_widget_destroy`.
+    - `BoxChildProperties` are applied to the child widget itself, as
+      GTK 4 removed child packing properties: `expand` sets hexpand or
+      vexpand, `fill` sets the alignment, and `padding` sets the margins.
+    - `Pane` properties use the start and end child of `GtkPaned`.
+    - New containers: `FlowBox`, `Stack`, `HeaderBar`, `ActionBar`,
+      `CenterBox`, `Fixed`, and `Overlay`.
+    - `GI.Gtk.Declarative.Container.MenuItem` is replaced by
+      `GI.Gtk.Declarative.MenuModel`, which builds a `GMenu` model shown
+      by a `PopoverMenuBar` or a `MenuButton`.
+    - CSS classes are set with `gtk_widget_add_css_class` rather than
+      through a style context, and `StateTreeNode` no longer carries one.
+    - Tests cover every container, the menus, and patching, and run
+      headless under Xvfb.
 * 0.7.0
     - Version bounds compatibility with Stack resolver lts-17.0
     - Replace Travis badge with a Github workflow one.

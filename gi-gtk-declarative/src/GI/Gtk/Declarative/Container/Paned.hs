@@ -24,8 +24,8 @@ module GI.Gtk.Declarative.Container.Paned
   )
 where
 
-import           Data.Coerce                    ( coerce )
 import           Data.Default.Class             ( Default(def) )
+import           Data.Text                      ( Text )
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
 import           GHC.Ptr                        ( nullPtr )
@@ -39,8 +39,8 @@ import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.Widget
 
--- | Describes a pane to be packed with
--- 'Gtk.panePack1'/'Gtk.panePack2' in a 'Gtk.Paned'.
+-- | Describes a pane to be packed as the start or the end child of a
+-- 'Gtk.Paned'.
 data Pane event = Pane
   { paneProperties :: PaneProperties
   , paneChild      :: Widget event
@@ -61,8 +61,7 @@ defaultPaneProperties = PaneProperties { resize = False, shrink = True }
 instance Default PaneProperties where
   def = defaultPaneProperties
 
--- | Construct a pane to be packed with
--- 'Gtk.panePack1'/'Gtk.panePack2' in a 'Gtk.Paned'.
+-- | Construct a pane to be packed in a 'Gtk.Paned'.
 pane :: PaneProperties -> Widget event -> Pane event
 pane paneProperties paneChild = Pane { .. }
 
@@ -84,36 +83,45 @@ paned attrs p1 p2 = container Gtk.Paned attrs (Panes p1 p2)
 data Panes child = Panes child child
   deriving (Functor)
 
+tooManyPanes :: Text -> IO ()
+tooManyPanes caller = GLib.logDefaultHandler
+  (Just "gi-gtk-declarative")
+  [GLib.LogLevelFlagsLevelWarning]
+  (Just
+    (caller
+    <> ": The `GI.Gtk.Paned` widget can only fit 2 panes. Additional children will be ignored."
+    )
+  )
+  nullPtr
+
+setPane
+  :: Gtk.Paned -> Int -> PaneProperties -> Maybe Gtk.Widget -> IO ()
+setPane paned' 0 PaneProperties { resize, shrink } widget' = do
+  Gtk.panedSetStartChild paned' widget'
+  Gtk.panedSetResizeStartChild paned' resize
+  Gtk.panedSetShrinkStartChild paned' shrink
+setPane paned' _ PaneProperties { resize, shrink } widget' = do
+  Gtk.panedSetEndChild paned' widget'
+  Gtk.panedSetResizeEndChild paned' resize
+  Gtk.panedSetShrinkEndChild paned' shrink
+
 instance IsContainer Gtk.Paned Pane where
-  appendChild paned' Pane { paneProperties = PaneProperties { resize, shrink } } widget'
-    = do
-      c1 <- Gtk.panedGetChild1 paned'
-      c2 <- Gtk.panedGetChild2 paned'
-      case (c1, c2) of
-        (Nothing, Nothing) ->
-          Gtk.panedPack1 paned' widget' (coerce resize) (coerce shrink)
-        (Just _, Nothing) ->
-          Gtk.panedPack2 paned' widget' (coerce resize) (coerce shrink)
-        _ -> GLib.logDefaultHandler
-          (Just "gi-gtk-declarative")
-          [GLib.LogLevelFlagsLevelWarning]
-          (Just
-            "appendChild: The `GI.Gtk.Paned` widget can only fit 2 panes. Additional children will be ignored."
-          )
-          nullPtr
-  replaceChild paned' Pane { paneProperties = PaneProperties { resize, shrink } } i old new
-    = do
-      Gtk.widgetDestroy old
-      case i of
-        0 -> Gtk.panedPack1 paned' new (coerce resize) (coerce shrink)
-        1 -> Gtk.panedPack2 paned' new (coerce resize) (coerce shrink)
-        _ -> GLib.logDefaultHandler
-          (Just "gi-gtk-declarative")
-          [GLib.LogLevelFlagsLevelWarning]
-          (Just
-            "replaceChild: The `GI.Gtk.Paned` widget can only fit 2 panes. Additional children will be ignored."
-          )
-          nullPtr
+  appendChild paned' Pane { paneProperties } widget' = do
+    c1 <- Gtk.panedGetStartChild paned'
+    c2 <- Gtk.panedGetEndChild paned'
+    case (c1, c2) of
+      (Nothing, Nothing) -> setPane paned' 0 paneProperties (Just widget')
+      (Just _ , Nothing) -> setPane paned' 1 paneProperties (Just widget')
+      _                  -> tooManyPanes "appendChild"
+  replaceChild paned' Pane { paneProperties } i _old new = case i of
+    0 -> setPane paned' 0 paneProperties (Just new)
+    1 -> setPane paned' 1 paneProperties (Just new)
+    _ -> tooManyPanes "replaceChild"
+  removeChild paned' widget' = do
+    c1 <- Gtk.panedGetStartChild paned'
+    if c1 == Just widget'
+      then Gtk.panedSetStartChild paned' (Nothing :: Maybe Gtk.Widget)
+      else Gtk.panedSetEndChild paned' (Nothing :: Maybe Gtk.Widget)
 
 instance ToChildren Gtk.Paned Panes Pane where
   toChildren _ (Panes p1 p2) = Children (Vector.fromList [p1, p2])

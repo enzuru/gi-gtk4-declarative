@@ -72,7 +72,7 @@ instance IsContainer Gtk.Notebook Widget where
             void $ Gtk.notebookAppendPage parent
                                           new
                                           (Nothing :: Maybe Gtk.Widget)
-  replaceChild parent _ i old new = do
+  replaceChild parent _ i _old new = do
     let i' = i `div` 2
     pageI <- Gtk.notebookGetNthPage parent i'
     case pageI of
@@ -89,7 +89,29 @@ instance IsContainer Gtk.Notebook Widget where
         if i `mod` 2 == 0
           then do
             label <- Gtk.notebookGetTabLabel parent p -- we have to replace the child
-            Gtk.widgetDestroy old
+            Gtk.notebookRemovePage parent i'
             void $ Gtk.notebookInsertPage parent new label i'
           else do
             Gtk.notebookSetTabLabel parent p (Just new) -- we have to replace the label
+  -- Selecting a page only works once the pages are there.
+  deferredProperties _ = ["page"]
+  removeChild parent widget' = do
+    pageNum <- Gtk.notebookPageNum parent widget'
+    if pageNum >= 0
+      then Gtk.notebookRemovePage parent pageNum
+      else removeTabLabel parent widget'
+
+-- | A widget that is not a page of the notebook is one of its tab
+-- labels; put that page back on the default label.
+removeTabLabel :: Gtk.Notebook -> Gtk.Widget -> IO ()
+removeTabLabel parent widget' = go 0
+ where
+  go i = do
+    nthPage <- Gtk.notebookGetNthPage parent i
+    case nthPage of
+      Nothing -> pure ()
+      Just p  -> do
+        label <- Gtk.notebookGetTabLabel parent p
+        if label == Just widget'
+          then Gtk.notebookSetTabLabel parent p (Nothing :: Maybe Gtk.Widget)
+          else go (i + 1)

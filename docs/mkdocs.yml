@@ -13,6 +13,7 @@ nav:
         - widgets/single-widgets.md
         - widgets/bins.md
         - widgets/containers.md
+        - widgets/menus.md
         - widgets/custom-widgets.md
     - 'Attributes':
         - attributes/properties.md

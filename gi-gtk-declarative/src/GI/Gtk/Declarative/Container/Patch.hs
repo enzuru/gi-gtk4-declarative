@@ -19,7 +19,6 @@ module GI.Gtk.Declarative.Container.Patch
   )
 where
 
-import           Data.Foldable                  ( foldMap )
 import           Data.Vector                    ( Vector
                                                 , (!?)
                                                 )
@@ -35,7 +34,6 @@ import           GI.Gtk.Declarative.State
 -- updates.
 patchInContainer
   :: ( Gtk.IsWidget container
-     , Gtk.IsContainer container
      , Patchable child
      , IsContainer container child
      )
@@ -93,7 +91,7 @@ patchInContainer (StateTreeContainer top children) container os' ns' = do
     -- When a declarative widget has been removed, remove the GTK widget from
     -- the container.
     (_i, Just childState, Just _, Nothing) -> do
-      Gtk.widgetDestroy =<< someStateWidget childState
+      removeChild container =<< someStateWidget childState
       return Vector.empty
 
     -- When there are more old declarative widgets than GTK widgets, we can
@@ -104,7 +102,7 @@ patchInContainer (StateTreeContainer top children) container os' ns' = do
     -- declarative widgets, something has gone wrong, and we clean that up by
     -- removing the GTK widgets.
     (_i, Just childState, Nothing, Nothing) -> do
-      Gtk.widgetDestroy =<< someStateWidget childState
+      removeChild container =<< someStateWidget childState
       return Vector.empty
 
     -- No more GTK widgets or declarative widgets, we are done.

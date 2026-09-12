@@ -1,7 +1,7 @@
 # gi-gtk-declarative
 
 <p id="subtitle">
-Declarative GTK+ programming in Haskell
+Declarative GTK 4 programming in Haskell
 </p>
 
 <p id="links">
@@ -21,17 +21,17 @@ spread to desktop applications through embedded web views, enabled by
 technologies like [Electron](https://electronjs.org/).
 
 But what about regular (non-web) GUI frameworks for desktop, like
-GTK+? We should be able to benefit from the declarative programming
+GTK? We should be able to benefit from the declarative programming
 model, stealing ideas from virtual DOM implementations and web front
 end frameworks, while using the battle-tested native GUI technologies
 on the desktop.
 
 This is the goal of [gi-gtk-declarative][]; a declarative and purely
-functional programming model for GTK+ user interfaces. The library
+functional programming model for GTK 4 user interfaces. The library
 aims to extend the
 [haskell-gi](https://github.com/haskell-gi/haskell-gi) family of
 packages as transparently as possible, not having to reimplement or
-manually wrap large parts of existing GTK+ widgets.
+manually wrap large parts of existing GTK widgets.
 
 Get started by checking out [the installation
 instructions](installation.md)!

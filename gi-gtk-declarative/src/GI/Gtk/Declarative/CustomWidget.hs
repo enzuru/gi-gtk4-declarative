@@ -67,14 +67,12 @@ instance
 
   create custom = do
     (widget, internalState) <- customCreate custom (customParams custom)
-    Gtk.widgetShow widget
     let collected = collectAttributes (customAttributes custom)
     updateProperties widget mempty (collectedProperties collected)
-    sc <- Gtk.widgetGetStyleContext widget
-    updateClasses sc mempty (collectedClasses collected)
+    updateClasses widget mempty (collectedClasses collected)
     pure
       (SomeState
-        (StateTreeWidget (StateTreeNode widget sc collected internalState))
+        (StateTreeWidget (StateTreeNode widget collected internalState))
       )
 
   patch (SomeState (stateTree :: StateTree st w e c cs)) old new =
@@ -98,10 +96,9 @@ instance
               | canBeModified -> Modify $ do
                 let widget' = stateTreeNodeWidget stateTree
                 updateProperties widget' oldCollectedProps newCollectedProps
-                updateClasses
-                  (stateTreeStyleContext (stateTreeNode stateTree))
-                  (collectedClasses oldCollected)
-                  (collectedClasses newCollected)
+                updateClasses widget'
+                              (collectedClasses oldCollected)
+                              (collectedClasses newCollected)
                 let node = stateTreeNode stateTree
                 internalState' <- case p of
                   CustomModify f ->
