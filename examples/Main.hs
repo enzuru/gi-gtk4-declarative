@@ -6,6 +6,7 @@ import           System.IO
 
 import qualified AddBoxes
 import qualified CSS
+import qualified Columns
 import qualified Controllers
 import qualified CustomWidget
 import qualified Dialog
@@ -27,6 +28,7 @@ main =
           [ ("AddBoxes"         , AddBoxes.main)
           , ("CustomWidget"     , CustomWidget.main)
           , ("Controllers"      , Controllers.main)
+          , ("Columns"          , Columns.main)
           , ("FileChooser"      , FileChooser.main)
           , ("Hello"            , Hello.main)
           , ("ListBox"          , ListBox.main)

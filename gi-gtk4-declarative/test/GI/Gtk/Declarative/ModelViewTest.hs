@@ -1,3 +1,4 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedLists     #-}
@@ -16,21 +17,34 @@ module GI.Gtk.Declarative.ModelViewTest where
 
 import           Control.Concurrent.STM
 import           Control.Monad                  ( foldM )
+import           Data.Int                       ( Int32 )
 import           Data.Maybe                     ( mapMaybe )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
+import           Data.GI.Base.GVariant          ( toGVariant )
+import           Data.Word                      ( Word32 )
+import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 import           Hedgehog                hiding ( label )
 
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.ModelView.ColumnView
+                                                ( Column(..)
+                                                , ColumnViewParams(..)
+                                                , column
+                                                , columnView
+                                                , defaultColumnViewParams
+                                                )
+import qualified GI.Gtk.Declarative.ModelView.ColumnView
+                                               as ColumnView
 import           GI.Gtk.Declarative.ModelView.ListView
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.TestUtils
 
-data Event = Toggled Word | Selected Word | Activated Word
+data Event = Toggled Word | Selected Word | Activated Word | Resized Int32
   deriving (Eq, Show)
 
 -- * Markup
@@ -51,6 +65,14 @@ buttonRows items = listView
       )
     )
     { rows = items
+    }
+
+activatableRows :: Vector Text -> Widget Event
+activatableRows items = listView
+  []
+  (defaultListViewParams (\text -> widget Gtk.Label [#label := text]))
+    { rows        = items
+    , onActivated = Just Activated
     }
 
 selectableRows :: Vector Text -> Maybe Word -> Widget Event
@@ -182,6 +204,154 @@ prop_selecting_a_row_emits = withTests 1 . property $ do
       Gtk.windowDestroy window
     atomically (flushTBQueue received)
   events === [Selected 2]
+
+-- * Column views
+
+-- | Two columns over a pair of texts, named by the keys given.
+pairColumns :: [(Text, Text)] -> Vector (Column (Text, Text) Event)
+pairColumns = Vector.fromList . map each
+ where
+  each (key, title)
+    | key == "left" = column key title (\(l, _) -> label l)
+    | otherwise     = column key title (\(_, r) -> label r)
+  label text = widget Gtk.Label [#label := text]
+
+pairRows :: Vector (Text, Text) -> [(Text, Text)] -> Widget Event
+pairRows items theColumns =
+  columnView [] (defaultColumnViewParams (pairColumns theColumns)) { ColumnView.rows = items }
+
+prop_cells_are_rendered = withTests 1 . property $ do
+  labels <- evalIO $ renderViews
+    [pairRows [("a", "1"), ("b", "2")] [("left", "Left"), ("right", "Right")]]
+    rowLabels
+  -- Every label below the view, which is the two column titles in the
+  -- header and then the cells, a row at a time.
+  Text.intercalate "," labels === "Left,Right,a,1,b,2"
+
+prop_columns_are_added_and_taken_away = withTests 1 . property $ do
+  (grown, shrunk) <- evalIO $ do
+    grown' <- renderViews
+      [ pairRows [("a", "1")] [("left", "Left")]
+      , pairRows [("a", "1")] [("left", "Left"), ("right", "Right")]
+      ]
+      columnTitles
+    shrunk' <- renderViews
+      [ pairRows [("a", "1")] [("left", "Left"), ("right", "Right")]
+      , pairRows [("a", "1")] [("right", "Right")]
+      ]
+      columnTitles
+    pure (grown', shrunk')
+  grown === ["Left", "Right"]
+  shrunk === ["Right"]
+
+prop_columns_keep_their_order = withTests 1 . property $ do
+  titles <- evalIO $ renderViews
+    [ pairRows [("a", "1")] [("left", "Left"), ("right", "Right")]
+    , pairRows [("a", "1")] [("right", "Right"), ("left", "Left")]
+    ]
+    columnTitles
+  titles === ["Right", "Left"]
+
+-- | A column that keeps its key keeps its widget, which is what makes
+-- adding a column cost one column rather than all of them.
+prop_a_column_that_stays_keeps_its_widget = withTests 1 . property $ do
+  same <- evalIO $ do
+    let first  = pairRows [("a", "1")] [("left", "Left")]
+        second = pairRows [("a", "1")] [("left", "Left"), ("right", "Right")]
+    (window, state, view) <- runUI $ do
+      state'  <- create first
+      view'   <- someStateWidget state'
+      window' <- Gtk.new Gtk.Window
+                         [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      Gtk.windowSetChild window' (Just view')
+      Gtk.windowPresent window'
+      pure (window', state', view')
+    settle
+    before <- runUI (columnWidgets view)
+    _      <- runUI (patch' state first second)
+    settle
+    after <- runUI (columnWidgets view)
+    runUI (Gtk.windowDestroy window)
+    pure (take 1 before == take 1 after && length after == 2)
+  same === True
+
+prop_a_column_resize_emits = withTests 1 . property $ do
+  events <- evalIO $ do
+    received <- newTBQueueIO 10
+    let widths :: Int32 -> Widget Event
+        widths width = columnView
+          []
+          (defaultColumnViewParams
+              [ (column "left" "Left" (\(l, _) -> widget Gtk.Label [#label := l]))
+                  { columnFixedWidth = Just width
+                  , onResized        = Just Resized
+                  }
+              ]
+            )
+            { ColumnView.rows = [("a" :: Text, "1" :: Text)] }
+        first  = widths 120
+        second = widths 200
+    (window, state, sub) <- runUI $ do
+      state'  <- create first
+      view'   <- someStateWidget state'
+      window' <- Gtk.new Gtk.Window
+                         [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      Gtk.windowSetChild window' (Just view')
+      Gtk.windowPresent window'
+      sub' <- subscribe first state' (atomically . writeTBQueue received)
+      pure (window', state', sub')
+    settle
+    _ <- runUI (patch' state first second)
+    settle
+    runUI (cancel sub >> Gtk.windowDestroy window)
+    atomically (flushTBQueue received)
+  events === [Resized 200]
+
+-- | The titles of the view's columns, in order.
+columnTitles :: Gtk.Widget -> IO [Text]
+columnTitles view = do
+  columns' <- columnWidgets view
+  traverse (fmap (maybe "" id) . Gtk.columnViewColumnGetTitle) columns'
+
+columnWidgets :: Gtk.Widget -> IO [Gtk.ColumnViewColumn]
+columnWidgets view = do
+  asColumnView <- Gtk.castTo Gtk.ColumnView view
+  case asColumnView of
+    Nothing -> pure []
+    Just cv -> do
+      model <- Gtk.columnViewGetColumns cv
+      count <- Gio.listModelGetNItems model
+      items <- traverse (Gio.listModelGetItem model) [0 .. count - 1]
+      traverse (Gtk.unsafeCastTo Gtk.ColumnViewColumn) (mapMaybe id items)
+
+-- | Activating a row, which a person does with a double click or with
+-- Enter, and a test does through the action GTK puts on the view for
+-- exactly that.
+prop_activating_a_row_emits = withTests 1 . property $ do
+  (found, events) <- evalIO $ do
+    received <- newTBQueueIO 10
+    let markup = activatableRows ["one", "two", "three"]
+    (window, view, sub) <- runUI $ do
+      state    <- create markup
+      view'    <- someStateWidget state
+      window'  <- Gtk.new Gtk.Window
+                          [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      scroller <- Gtk.new Gtk.ScrolledWindow []
+      Gtk.scrolledWindowSetChild scroller (Just view')
+      Gtk.windowSetChild window' (Just scroller)
+      Gtk.windowPresent window'
+      sub' <- subscribe markup state (atomically . writeTBQueue received)
+      pure (window', view', sub')
+    settle
+    found' <- runUI $ do
+      position <- toGVariant (1 :: Word32)
+      Gtk.widgetActivateAction view "list.activate-item" (Just position)
+    settle
+    runUI (cancel sub >> Gtk.windowDestroy window)
+    events' <- atomically (flushTBQueue received)
+    pure (found', events')
+  found === True
+  events === [Activated 1]
 
 -- | The buttons in the rows on screen.
 rowButtons :: Gtk.Widget -> IO [Gtk.ToggleButton]

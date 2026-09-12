@@ -104,3 +104,4 @@ instance IsContainer Gtk.Box BoxChild where
     applyBoxChildProperties box properties new
     Gtk.boxInsertChildAfter box new sibling
   removeChild = Gtk.boxRemove
+  reapplyChild box BoxChild { properties } = applyBoxChildProperties box properties

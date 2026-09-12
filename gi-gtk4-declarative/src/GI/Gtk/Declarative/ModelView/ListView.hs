@@ -32,6 +32,10 @@
 --
 -- Put the view in a 'Gtk.ScrolledWindow'. A list view does not scroll
 -- on its own.
+--
+-- The parameters of a list view and of a column view share field
+-- names, so a module that uses both wants either
+-- @DisambiguateRecordFields@ or a qualified import of one of them.
 module GI.Gtk.Declarative.ModelView.ListView
   ( ListView
   , ListViewParams(..)
@@ -42,6 +46,7 @@ where
 
 import           Control.Monad                  ( when )
 import           Data.Foldable                  ( for_ )
+import qualified Data.HashMap.Strict           as HashMap
 import           Data.IORef
 import           Data.Typeable
 import           Data.Vector                    ( Vector )
@@ -128,7 +133,8 @@ instance Patchable (ListView item) where
     slots <- createSlots view attributes
     resolveReferences view attributes
 
-    state <- newViewState (rows params) (renderRow params)
+    state <- newViewState (rows params)
+                          (HashMap.singleton theColumn (renderRow params))
     writeIORef (viewOnSelected state)  (onSelected params)
     writeIORef (viewOnActivated state) (onActivated params)
 
@@ -166,7 +172,8 @@ instance Patchable (ListView item) where
                                     newAttributes
                 resolveReferences view newAttributes
 
-                writeIORef (viewRender state)      (renderRow newParams)
+                writeIORef (viewRenderers state)
+                           (HashMap.singleton theColumn (renderRow newParams))
                 writeIORef (viewOnSelected state)  (onSelected newParams)
                 writeIORef (viewOnActivated state) (onActivated newParams)
                 setItems state (rows newParams)
@@ -217,7 +224,8 @@ instance EventSource (ListView item) where
 connectFactory
   :: ViewState item event -> Gtk.SignalListItemFactory -> IO ()
 connectFactory state factory = do
-  _ <- Gtk.on factory #bind $ withCell (\key cell -> bindCell state key cell)
+  _ <- Gtk.on factory #bind
+    $ withCell (\key cell -> bindCell state theColumn key cell)
   _ <- Gtk.on factory #unbind $ withCell (\key _ -> unbindCell state key)
   _ <- Gtk.on factory #teardown $ withCell (\key _ -> teardownCell state key)
   pure ()

@@ -172,7 +172,10 @@ that is the application's job.
    per-row state, and the event sink all appear there. **Done**, in
    `GI.Gtk.Declarative.ModelView.ListView`, on the machinery in
    `GI.Gtk.Declarative.ModelView.Internal`.
-2. `ColumnView` on the same machinery, plus the column diff.
+2. `ColumnView` on the same machinery, plus the column diff. **Done**,
+   in `GI.Gtk.Declarative.ModelView.ColumnView`. Columns are matched
+   across a render by a key of the caller's choosing, so a column that
+   keeps its key keeps its widget, its width, and its cells.
 3. `GridView` and `DropDown`, which are the same again with a different
    widget.
 4. Cellar's grid, last.
@@ -184,6 +187,13 @@ that were never built passes for the wrong reason. Scrolling is the case
 that matters after that, because it is the one that exercises recycling.
 Drive it by setting a large item count and calling
 `gtk_column_view_scroll_to`.
+
+## What the tests have to do
+
+A view that is not on screen has no size, and a view with no size has
+no rows, so every test here presents its window first. Activating a row
+needs no mouse: GTK puts a `list.activate-item` action on the view, and
+a test hands it a position.
 
 ## Two numbers to get before committing
 

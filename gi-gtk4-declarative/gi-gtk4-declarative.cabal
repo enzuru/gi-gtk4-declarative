@@ -60,6 +60,7 @@ library
                       , GI.Gtk.Declarative.EventController
                       , GI.Gtk.Declarative.EventSource
                       , GI.Gtk.Declarative.MenuModel
+                      , GI.Gtk.Declarative.ModelView.ColumnView
                       , GI.Gtk.Declarative.ModelView.Internal
                       , GI.Gtk.Declarative.ModelView.ListView
                       , GI.Gtk.Declarative.Patch
