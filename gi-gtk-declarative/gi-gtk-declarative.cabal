@@ -57,6 +57,7 @@ library
                       , GI.Gtk.Declarative.EventSource
                       , GI.Gtk.Declarative.MenuModel
                       , GI.Gtk.Declarative.Patch
+                      , GI.Gtk.Declarative.References
                       , GI.Gtk.Declarative.SingleWidget
                       , GI.Gtk.Declarative.Slots
                       , GI.Gtk.Declarative.State
@@ -111,6 +112,7 @@ test-suite gi-gtk-declarative-tests
                    , GI.Gtk.Declarative.EventControllerTest
                    , GI.Gtk.Declarative.MenuModelTest
                    , GI.Gtk.Declarative.PatchTest
+                   , GI.Gtk.Declarative.ReferenceTest
                    , GI.Gtk.Declarative.SlotTest
                    , GI.Gtk.Declarative.TestUtils
                    , GI.Gtk.Declarative.TestWidget

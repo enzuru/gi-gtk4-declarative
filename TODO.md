@@ -15,20 +15,7 @@ widgets, so the patching model fits them.
 This one needs a design decision first: a declarative list over a model
 is a different thing from a declarative tree of widgets.
 
-## 2. Widgets that point at another widget
-
-`StackSwitcher` and `StackSidebar` need the `Stack` they control, and a
-`SearchBar` needs the widget whose keys it captures. These are not
-widgets a parent owns: the stack lives somewhere else in the layout,
-and the switcher only points at it.
-
-A slot cannot express that, because a slot holds a widget of its own.
-What would is either a combined constructor, which builds the switcher
-and the stack together and wires them up, or a way to name a widget in
-one place and refer to it in another. The combined constructor is the
-smaller of the two and covers the cases that come up.
-
-## 3. Housekeeping
+## 2. Housekeeping
 
 - `gi-gtk-declarative/src/GI/Gtk/Declarative/Markup.hs` is an empty
   stub that no cabal file names. Delete it.
@@ -43,6 +30,10 @@ smaller of the two and covers the cases that come up.
 
 ## Done
 
+- Widgets that point at another widget. `reference`, and `switcherStack`,
+  `sidebarStack`, `keyCaptureWidget`, `mnemonicWidget`, and
+  `defaultWidget` in `GI.Gtk.Declarative.References`. A widget is named
+  with its `name` property and pointed at from elsewhere in the tree.
 - Widget-valued properties. `slot`, and `titlebar`, `frameLabel`,
   `expanderLabel`, `listBoxPlaceholder`, and `menuButtonPopover` in
   `GI.Gtk.Declarative.Slots`. The widget in a slot is created, patched,

@@ -47,6 +47,7 @@ instance Patchable (SingleWidget widget) where
       widget' <- Gtk.new ctor (constructProperties collected)
       updateClasses widget' mempty (collectedClasses collected)
       slots <- createSlots widget' attrs
+      resolveReferences widget' attrs
       return
         (SomeState (StateTreeWidget (StateTreeNode widget' collected () slots)))
   patch (SomeState (st :: StateTree stateType w child event cs)) (SingleWidget (_ :: Gtk.ManagedPtr
@@ -71,6 +72,7 @@ instance Patchable (SingleWidget widget) where
                                   (stateTreeSlots top)
                                   oldAttributes
                                   newAttributes
+              resolveReferences w newAttributes
               return
                 (SomeState
                   (StateTreeWidget top

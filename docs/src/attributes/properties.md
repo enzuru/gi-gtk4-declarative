@@ -80,3 +80,45 @@ slot "placeholder" Gtk.listBoxSetPlaceholder (widget Label [#label := "Empty"])
 
 The name tells one slot from another when patching, so two slots on the
 same widget must not share a name.
+
+## Pointing at Another Widget
+
+Some widgets work on a widget they do not hold. A `StackSwitcher`
+switches a `Stack`, but the stack lives wherever the layout puts it,
+which in the usual arrangement is the window's body while the switcher
+is in its title bar. A slot cannot say that, because a slot holds a
+widget of its own.
+
+Name the one and point at it from the other:
+
+``` haskell
+bin Window
+  [ titlebar $ container HeaderBar []
+      [ headerBarTitle (widget StackSwitcher [switcherStack "pages"]) ]
+  ]
+  (container Stack [#name := "pages"] pages)
+```
+
+The name is the widget's GTK name, which is what a CSS `#id` selector
+matches and what a GtkBuilder file calls an id. A widget with no name of
+its own answers with the name of its class, so pick a distinctive one.
+
+`GI.Gtk.Declarative.References` names these:
+
+- `switcherStack`, for a stack switcher
+- `sidebarStack`, for a stack sidebar
+- `keyCaptureWidget`, for a search bar
+- `mnemonicWidget`, for a label
+- `defaultWidget`, for a window
+
+A reference is resolved once the whole tree is built, and again after
+each patch, because the widget it names may have been replaced. A name
+that matches nothing leaves the property unset and is reported as a
+warning through GLib.
+
+For a property this module does not name, use `reference` with the
+setter from gi-gtk:
+
+``` haskell
+reference Gtk.searchBarSetKeyCaptureWidget "the-window"
+```

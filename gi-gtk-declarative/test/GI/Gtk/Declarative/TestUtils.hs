@@ -29,6 +29,11 @@ runUI ma = do
     return False
   liftIO (takeMVar ret)
 
+-- | Let the main loop run whatever is waiting on it, such as the
+-- references a render left to resolve, and come back when it has.
+settle :: MonadIO m => m ()
+settle = runUI (pure ())
+
 patch'
   :: Patchable widget => SomeState -> widget e1 -> widget e2 -> IO SomeState
 patch' state markup1 markup2 = case patch state markup1 markup2 of

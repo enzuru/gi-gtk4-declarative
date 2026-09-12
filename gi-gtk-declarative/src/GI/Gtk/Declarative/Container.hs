@@ -98,6 +98,7 @@ instance
     widget' <- Gtk.new ctor (constructPropertiesOf now)
     updateClasses widget' mempty (collectedClasses collected)
     slots       <- createSlots widget' attrs
+    resolveReferences widget' attrs
     childStates <- forM (unChildren children) $ \child -> do
       childState <- create child
       appendChild widget' child =<< someStateWidget childState
@@ -134,6 +135,7 @@ instance
                                     (stateTreeSlots top)
                                     oldAttributes
                                     newAttributes
+                resolveReferences containerWidget newAttributes
                 let top' = top { stateTreeCollectedAttributes = newCollected
                                , stateTreeSlots               = slots
                                }

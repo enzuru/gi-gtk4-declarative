@@ -63,6 +63,7 @@ import           GI.Gtk.Declarative.EventController
                                                as Export
 import           GI.Gtk.Declarative.MenuModel  as Export
 import           GI.Gtk.Declarative.Patch      as Export
+import           GI.Gtk.Declarative.References as Export
 import           GI.Gtk.Declarative.SingleWidget
                                                as Export
 import           GI.Gtk.Declarative.Slots      as Export
