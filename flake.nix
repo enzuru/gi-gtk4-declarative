@@ -27,6 +27,7 @@
         pipes pipes-concurrency pipes-extras
         haskell-gi haskell-gi-base haskell-gi-overloading
         gi-glib gi-gobject gi-gio gi-gdk gi-gtk gi-gsk gi-pango gi-cairo
+        criterion
       ];
     in {
       devShells = forAll (pkgs:
@@ -34,6 +35,14 @@
           ghc = pkgs.haskellPackages.ghcWithPackages haskellDeps;
           runtime = runtimeLibs pkgs;
         in {
+          # The documentation site, which needs Python rather than GHC.
+          docs = pkgs.mkShell {
+            packages = [
+              (pkgs.python3.withPackages
+                (ps: [ ps.mkdocs ps.mkdocs-material ]))
+            ];
+          };
+
           default = pkgs.mkShell {
             packages = with pkgs; [
               ghc

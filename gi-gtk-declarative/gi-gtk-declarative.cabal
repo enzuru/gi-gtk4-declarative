@@ -116,3 +116,17 @@ test-suite gi-gtk-declarative-tests
                    , GI.Gtk.Declarative.SlotTest
                    , GI.Gtk.Declarative.TestUtils
                    , GI.Gtk.Declarative.TestWidget
+
+benchmark gi-gtk-declarative-bench
+  type:              exitcode-stdio-1.0
+  hs-source-dirs:    bench
+  main-is:           Benchmark.hs
+  build-depends:     base       >= 4        && < 5
+                   , criterion  >= 1.5      && < 1.7
+                   , gi-glib    >= 2        && < 3
+                   , gi-gtk     >= 4        && < 5
+                   , gi-gtk-declarative
+                   , text       >= 1.2      && < 2.2
+                   , vector     >= 0.12     && < 0.14
+  ghc-options:       -Wall -threaded
+  default-language:  Haskell2010

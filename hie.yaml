@@ -1,6 +1,19 @@
+# The two packages, their tests, and the examples, as one set of source
+# directories.
+#
+# The gi-gtk4 and gi-gdk4 packages are copies of gi-gtk and gi-gdk under
+# other names, and two packages holding a module called GI.Gtk make
+# every import of it ambiguous, so the copies are hidden here as they
+# are in the Makefile.
 cradle:
   direct:
     arguments:
+      - -XHaskell2010
+      - -hide-package
+      - gi-gtk4
+      - -hide-package
+      - gi-gdk4
       - -igi-gtk-declarative/src
       - -igi-gtk-declarative-app-simple/src
+      - -igi-gtk-declarative/test
       - -iexamples

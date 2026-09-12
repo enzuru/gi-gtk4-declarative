@@ -7,7 +7,7 @@ import           Control.Concurrent
 import           Control.Monad
 import           Criterion.Main
 import           Data.Functor                   ( (<&>) )
-import           Data.Text
+import           Data.Text                      ( pack )
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
 import qualified GI.GLib                       as GLib
@@ -57,7 +57,11 @@ main = do
             void $ testPatch s1 initialView initialView
           , bench "Modify (diff)" . whnfIO . replicateM_ 10 $ do
             s1 <- testPatch initialState initialView initialView
-            void $ testPatch s1 initialView (testView (Vector.enumFromN 2 101))
+            -- The same number of children, with different labels: this
+            -- measures a patch of every child, not the cost of adding
+            -- one. Patching 100 children into 101 grows the window by
+            -- one label per iteration, until X refuses to allocate it.
+            void $ testPatch s1 initialView (testView (Vector.enumFromN 2 100))
           ]
       ]
     GLib.mainLoopQuit mainLoop
