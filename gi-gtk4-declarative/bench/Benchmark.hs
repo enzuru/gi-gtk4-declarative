@@ -92,10 +92,13 @@ oneTurn cell old new = do
 -- widgets for the rows on screen and for no others, and a view nobody
 -- can see has no rows.
 columnViewOf
-  :: Int -> Int -> Vector Text -> IO (SomeState, Vector Text -> Widget ())
+  :: Int
+  -> Int
+  -> Vector Text
+  -> IO (SomeState, Bool -> Vector Text -> Widget ())
 columnViewOf theRows theColumns items = do
-  let cells :: Vector Text -> Widget ()
-      cells value = columnView
+  let cells :: Bool -> Vector Text -> Widget ()
+      cells compared value = columnView
         []
         (defaultColumnViewParams
             (Vector.fromList
@@ -109,10 +112,11 @@ columnViewOf theRows theColumns items = do
               ]
             )
           )
-          { rows = value
+          { rows         = value
+          , rowUnchanged = if compared then Just (==) else Nothing
           }
   state <- runUI $ do
-    state'   <- create (cells items)
+    state'   <- create (cells False items)
     view     <- someStateWidget state'
     window   <- Gtk.new
       Gtk.Window
@@ -161,6 +165,16 @@ main = do
         allChanged  = rowsOf 100 1000
     (viewState, viewMarkup) <- columnViewOf 100 10 firstRows
     viewCell                <- newIORef viewState
+    -- Patch the view to these rows and back again, so that the view is
+    -- where it started when the measurement ends.
+    let patchBothWays compared changed = do
+          state  <- readIORef viewCell
+          state' <- testPatch state
+                              (viewMarkup compared firstRows)
+                              (viewMarkup compared changed)
+          writeIORef viewCell =<< testPatch state'
+                                            (viewMarkup compared changed)
+                                            (viewMarkup compared firstRows)
 
     defaultMain
       [ bgroup
@@ -187,18 +201,16 @@ main = do
         ]
       , bgroup
         "column view"
-        [ bench "100 rows, one changed" . whnfIO $ do
-          state <- readIORef viewCell
-          state' <- testPatch state (viewMarkup firstRows) (viewMarkup oneChanged)
-          writeIORef viewCell =<< testPatch state'
-                                            (viewMarkup oneChanged)
-                                            (viewMarkup firstRows)
-        , bench "100 rows, every one changed" . whnfIO $ do
-          state <- readIORef viewCell
-          state' <- testPatch state (viewMarkup firstRows) (viewMarkup allChanged)
-          writeIORef viewCell =<< testPatch state'
-                                            (viewMarkup allChanged)
-                                            (viewMarkup firstRows)
+        [ bench "100 rows, one changed" . whnfIO $ patchBothWays False oneChanged
+        , bench "100 rows, every one changed"
+        . whnfIO
+        $ patchBothWays False allChanged
+        , bench "100 rows, one changed, rows compared"
+        . whnfIO
+        $ patchBothWays True oneChanged
+        , bench "100 rows, every one changed, rows compared"
+        . whnfIO
+        $ patchBothWays True allChanged
         ]
       ]
     GLib.mainLoopQuit mainLoop

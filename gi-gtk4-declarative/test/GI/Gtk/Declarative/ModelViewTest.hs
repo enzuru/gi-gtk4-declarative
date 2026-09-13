@@ -95,6 +95,22 @@ mixedRows items = listView
     { rows = items
     }
 
+-- | Rows whose label is the item and something else, so that a row
+-- which is drawn again can be told from one that is left alone.
+--
+-- The comparison says a row need not be drawn again when its item is
+-- the same value, which is a promise about the renderer: that it reads
+-- its item and nothing else. These rows break that promise on purpose.
+suffixedRows :: Maybe (Text -> Text -> Bool) -> Vector Text -> Text -> Widget Event
+suffixedRows compare' items suffix = listView
+  []
+  (defaultListViewParams
+      (\text -> widget Gtk.Label [#label := (text <> suffix)])
+    )
+    { rows         = items
+    , rowUnchanged = compare'
+    }
+
 -- | Rows that cannot be selected, which is what a view whose rows are
 -- not a choice asks for.
 unselectableRows :: Vector Text -> Widget Event
@@ -249,6 +265,40 @@ prop_selecting_a_row_emits = withTests 1 . property $ do
       Gtk.windowDestroy window
     atomically (flushTBQueue received)
   events === [Selected 2]
+
+-- | A row whose item changed is drawn again, comparison or no
+-- comparison.
+prop_a_compared_row_is_drawn_again_when_its_item_changes =
+  withTests 1 . property $ do
+    labels <- evalIO $ renderViews
+      [ suffixedRows (Just (==)) ["one", "two"] ""
+      , suffixedRows (Just (==)) ["one", "CHANGED"] ""
+      ]
+      rowLabels
+    labels === ["one", "CHANGED"]
+
+-- | A row whose item did not change is left alone: not rendered, not
+-- patched, and not subscribed to again.
+--
+-- Here the renderer reads something other than its item, so leaving
+-- the row alone is something a person can see. That is the promise the
+-- comparison asks for, and this is what breaking it looks like.
+prop_a_compared_row_that_did_not_change_is_left_alone =
+  withTests 1 . property $ do
+    (compared, redrawn) <- evalIO $ do
+      compared' <- renderViews
+        [ suffixedRows (Just (==)) ["one", "two"] ""
+        , suffixedRows (Just (==)) ["one", "two"] "!"
+        ]
+        rowLabels
+      redrawn' <- renderViews
+        [ suffixedRows Nothing ["one", "two"] ""
+        , suffixedRows Nothing ["one", "two"] "!"
+        ]
+        rowLabels
+      pure (compared', redrawn')
+    compared === ["one", "two"]
+    redrawn === ["one!", "two!"]
 
 -- | Selecting a row is what a click on it does, and the action GTK
 -- puts on the view for exactly that is how a test does it.
