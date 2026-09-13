@@ -15,7 +15,11 @@
 -- rows.
 module GI.Gtk.Declarative.ModelViewTest where
 
+import           Control.Concurrent             ( threadDelay )
 import           Control.Concurrent.STM
+import           Control.Monad.IO.Class         ( MonadIO
+                                                , liftIO
+                                                )
 import           Control.Monad                  ( foldM )
 import           Data.Int                       ( Int32 )
 import           Data.Maybe                     ( mapMaybe )
@@ -420,6 +424,164 @@ prop_a_view_that_selects_nothing_still_activates = withTests 1 . property $ do
     pure (found', events')
   found === True
   events === [Activated 1]
+
+-- * Scrolling, and the widgets that come back from it
+
+-- | Rows of two kinds, told apart by what the item says. A row whose
+-- widget is used again for an item of the other kind has to be built
+-- again, which is the path a patch cannot reach: only scrolling binds
+-- a widget to an item it was not made for.
+mixedKindRows :: Vector Text -> Maybe Word -> Widget Event
+mixedKindRows items scroll = listView
+  []
+  (defaultListViewParams render) { rows = items, scrollTo = scroll }
+ where
+  render text
+    | "button" `Text.isPrefixOf` text
+    = widget Gtk.ToggleButton [#label := text]
+    | otherwise
+    = widget Gtk.Label [#label := text]
+
+-- | Two hundred rows, half of them buttons.
+manyRows :: Vector Text
+manyRows = Vector.fromList
+  [ (if even index then "label-" else "button-") <> Text.pack (show index)
+  | index <- [0 .. 199 :: Int]
+  ]
+
+-- | Render a view in a scrolled window, patch it with the rest, and
+-- hand the view and the scroller to the action.
+renderScrolling
+  :: [Widget Event] -> (Gtk.Widget -> Gtk.ScrolledWindow -> IO a) -> IO a
+renderScrolling [] _ = fail "renderScrolling: no markup to render"
+renderScrolling (first : rest) f = do
+  (window, state, view, scroller) <- runUI $ do
+    state'   <- create first
+    view'    <- someStateWidget state'
+    window'  <- Gtk.new Gtk.Window
+                        [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+    scroller <- Gtk.new Gtk.ScrolledWindow []
+    Gtk.scrolledWindowSetChild scroller (Just view')
+    Gtk.windowSetChild window' (Just scroller)
+    Gtk.windowPresent window'
+    pure (window', state', view', scroller)
+  settle
+  _      <- foldM step (state, first) rest
+  result <- runUI (f view scroller)
+  runUI (Gtk.windowDestroy window)
+  pure result
+ where
+  step (state, old) new = do
+    state' <- runUI (patch' state old new)
+    settle
+    pure (state', new)
+
+-- | A view scrolls where the markup says. Scrolling is a command: it
+-- happens when the value differs from the one before, so a view
+-- function that keeps saying the same thing leaves the user where they
+-- scrolled to.
+prop_a_view_scrolls_where_it_is_told = withTests 1 . property $ do
+  (atRest, scrolled, again, back) <- evalIO $ do
+    let markup = mixedKindRows manyRows
+    (window, state, scroller) <- runUI $ do
+      state'    <- create (markup Nothing)
+      view      <- someStateWidget state'
+      window'   <- Gtk.new Gtk.Window
+                           [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      scroller' <- Gtk.new Gtk.ScrolledWindow []
+      Gtk.scrolledWindowSetChild scroller' (Just view)
+      Gtk.windowSetChild window' (Just scroller')
+      Gtk.windowPresent window'
+      pure (window', state', scroller')
+    frames
+    atRest'   <- runUI (valueOf scroller)
+    _         <- runUI (patch' state (markup Nothing) (markup (Just 150)))
+    frames
+    scrolled' <- runUI (valueOf scroller)
+    -- The same command again, which is not a new command.
+    _         <- runUI (patch' state (markup (Just 150)) (markup (Just 150)))
+    frames
+    again'    <- runUI (valueOf scroller)
+    _         <- runUI (patch' state (markup (Just 150)) (markup (Just 0)))
+    frames
+    back'     <- runUI (valueOf scroller)
+    runUI (Gtk.windowDestroy window)
+    pure (atRest', scrolled', again', back')
+  atRest === 0
+  (scrolled > 0) === True
+  again === scrolled
+  back === 0
+
+-- | A row widget that is used again for an item of the other kind is
+-- built again. Only scrolling can ask for that: a patch draws a row
+-- against the markup it was drawn from, and a bind draws it against
+-- whatever item it lands on.
+prop_a_recycled_row_shows_the_kind_its_item_asks_for =
+  withTests 1 . property $ do
+    kinds <- evalIO $ do
+      let markup = mixedKindRows manyRows
+      (window, state, view) <- runUI $ do
+        state'    <- create (markup Nothing)
+        view'     <- someStateWidget state'
+        window'   <- Gtk.new Gtk.Window
+                             [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+        scroller' <- Gtk.new Gtk.ScrolledWindow []
+        Gtk.scrolledWindowSetChild scroller' (Just view')
+        Gtk.windowSetChild window' (Just scroller')
+        Gtk.windowPresent window'
+        pure (window', state', view')
+      settle
+      -- Scroll far enough that every widget on screen has been used
+      -- for another row, and by an odd number of rows so that the
+      -- kinds do not line up as they were.
+      _     <- runUI (patch' state (markup Nothing) (markup (Just 101)))
+      settle
+      _     <- runUI (patch' state (markup (Just 101)) (markup (Just 42)))
+      settle
+      kinds' <- runUI (rowKinds view)
+      runUI (Gtk.windowDestroy window)
+      pure kinds'
+    -- Every row on screen is the kind its own item asks for.
+    filter wrongKind kinds === []
+ where
+  wrongKind (text, isButton) = Text.isPrefixOf "button" text /= isButton
+
+-- | What each row on screen says, and whether it is a button.
+rowKinds :: Gtk.Widget -> IO [(Text, Bool)]
+rowKinds view = do
+  widgets <- descendants view
+  found   <- traverse describe widgets
+  pure (mapMaybe id found)
+ where
+  describe w = do
+    asButton <- Gtk.castTo Gtk.ToggleButton w
+    case asButton of
+      Just b  -> fmap (\text -> (maybe "" id text, True)) <$> (Just <$> Gtk.buttonGetLabel b)
+      Nothing -> do
+        asLabel <- Gtk.castTo Gtk.Label w
+        case asLabel of
+          -- The label inside a button is not a row of its own.
+          Just l  -> do
+            parent <- Gtk.widgetGetParent l
+            inButton <- maybe (pure Nothing) (Gtk.castTo Gtk.ToggleButton) parent
+            case inButton of
+              Just _  -> pure Nothing
+              Nothing -> Just . (\text -> (text, False)) <$> Gtk.get l #label
+          Nothing -> pure Nothing
+
+-- | Let the main loop draw a frame or two, which is when a list view
+-- carries out a scroll it was asked for.
+frames :: MonadIO m => m ()
+frames = do
+  settle
+  liftIO (threadDelay 300000)
+  settle
+
+-- | Where a scrolled window is scrolled to.
+valueOf :: Gtk.ScrolledWindow -> IO Double
+valueOf scroller = do
+  adjustment <- Gtk.scrolledWindowGetVadjustment scroller
+  Gtk.adjustmentGetValue adjustment
 
 -- | How many controllers each row on screen carries.
 rowControllerCounts :: Gtk.Widget -> IO [Word32]

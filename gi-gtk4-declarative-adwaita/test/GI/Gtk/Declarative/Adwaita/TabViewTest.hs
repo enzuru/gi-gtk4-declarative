@@ -28,6 +28,10 @@ import           GI.Gtk.Declarative.Adwaita.TestUtils
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
 
+-- | The events the mapped markup is read as.
+newtype Outer = Wrapped Event
+  deriving (Eq, Show)
+
 data Event
   = Chose Text
   | Reordered (Vector Text)
@@ -368,6 +372,54 @@ prop_a_widget_in_a_tab_emits_its_events = withTests 1 . property $ do
       Gtk.windowDestroy window
     pure events
   events === [Pressed "b"]
+
+-- | A tab view whose attributes cannot be patched into the new ones is
+-- built again, tabs and all.
+prop_a_tab_view_that_cannot_be_patched_is_built_again =
+  withTests 1 . property $ do
+    (built, titles) <- evalIO $ do
+      let attributed as =
+            tabView as (labelTabs [("a", "First")]) :: Widget Event
+          first  = attributed [#name := ("tabs" :: Text), #widthRequest := 40]
+          second = attributed [#name := ("tabs" :: Text)]
+      state  <- runUI (create first)
+      before <- runUI (someStateWidget state)
+      state' <- runUI (patch' state first second)
+      after  <- runUI (someStateWidget state')
+      view   <- runUI (Gtk.unsafeCastTo Adw.TabView after)
+      titles' <- runUI (pageTitles view)
+      pure (before /= after, titles')
+    built === True
+    titles === ["First"]
+
+-- | Tabs that are mapped into another event type emit the mapped
+-- event, which is what putting one view function inside another does.
+prop_mapped_tabs_emit_mapped_events = withTests 1 . property $ do
+  events <- evalIO $ do
+    received <- newTBQueueIO 10
+    let inner = markup (buttonTabs [("a", "First")])
+        outer = Wrapped <$> inner
+    (window, state, view) <- runUI $ do
+      state'  <- create outer
+      widget' <- someStateWidget state'
+      window' <- Gtk.new Gtk.Window []
+      Gtk.windowSetChild window' (Just widget')
+      view' <- Gtk.unsafeCastTo Adw.TabView widget'
+      pure (window', state', view')
+    sub <- runUI (subscribe outer state (atomically . writeTBQueue received))
+    runUI $ do
+      children <- pageChildren view
+      case children of
+        (first : _) -> do
+          button <- Gtk.unsafeCastTo Gtk.ToggleButton first
+          Gtk.toggleButtonSetActive button True
+        [] -> fail "no pages"
+    events <- atomically (flushTBQueue received)
+    runUI $ do
+      cancel sub
+      Gtk.windowDestroy window
+    pure events
+  events === [Wrapped (Pressed "a")]
 
 tests :: IO Bool
 tests = checkParallel $$(discover)

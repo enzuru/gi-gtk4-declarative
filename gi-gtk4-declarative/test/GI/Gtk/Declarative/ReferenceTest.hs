@@ -219,6 +219,32 @@ prop_a_window_finds_its_default_widget = withTests 1 . property $ do
     )
   found === Just "the-button"
 
+-- | A reference that names a widget of the wrong kind leaves the
+-- property unset, and says so through GLib rather than throwing: this
+-- runs on the main loop, where there is nobody to catch it.
+prop_a_reference_to_the_wrong_kind_of_widget_points_at_nothing =
+  withTests 1 . property $ do
+    found <- evalIO $ renderWindow
+      (bin
+        Gtk.Window
+        []
+        (container
+          Gtk.Box
+          []
+          [ BoxChild defaultBoxChildProperties
+            (widget Gtk.StackSwitcher [switcherStack "not-a-stack"])
+          , BoxChild defaultBoxChildProperties
+                     (widget Gtk.Label [#name := ("not-a-stack" :: Text)])
+          ]
+        )
+      )
+      (\window -> do
+        switcher <- firstOfType Gtk.StackSwitcher window
+        stack    <- traverse Gtk.stackSwitcherGetStack switcher
+        pure (isJust (join stack))
+      )
+    found === False
+
 -- | The first widget of this type below the window.
 firstOfType
   :: Gtk.GObject widget
