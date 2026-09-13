@@ -87,10 +87,36 @@ that changes one row costs 1.7 ms with the comparison and 22 ms without
 it.
 
 This is a promise about the renderer: that it reads its item and nothing
-else. A `renderRow` that also reads, say, which cell is being edited
-gives two different rows for two equal items, and the view would show
-the older one. Leave `rowUnchanged` as `Nothing` for such a renderer, or
-put what it reads in the item.
+else. Here is what breaking it looks like, because the failure is quiet.
+The rows are row numbers, and the renderer reaches past them for what it
+draws:
+
+``` haskell
+-- Wrong, with rowUnchanged = Just (==).
+(defaultColumnViewParams (columnsOf sheet))
+  { rows = Vector.enumFromN 0 (rowCount sheet)
+  , rowUnchanged = Just (==)
+  }
+  where
+    columnsOf sheet = [ column key title (ow -> cellAt sheet row key) | ... ]
+```
+
+Row 4 is the number 4 in every render, so the view is told that row 4
+has not changed, and it never draws again however much the sheet under
+it changes. Nothing warns; the row simply stops repainting.
+
+Put what the renderer reads in the item instead:
+
+``` haskell
+(defaultColumnViewParams (columnsOf sheet))
+  { rows = rowsOf sheet          -- each row carries the cells it draws
+  , rowUnchanged = Just (==)
+  }
+```
+
+A renderer that reads something the item cannot hold, such as which cell
+is being edited somewhere else, leaves `rowUnchanged` as `Nothing` and
+draws every row on every patch.
 
 ## Selection
 
