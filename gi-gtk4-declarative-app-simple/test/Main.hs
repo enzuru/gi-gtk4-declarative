@@ -86,6 +86,39 @@ main = hspec $
       _     <- Gio.applicationRun application (Just [])
       state <- timeout 1000000 (takeMVar finished)
       state `shouldBe` Just 1
+    -- A view function can give a window that cannot be patched into
+    -- the one on screen, and then the window is built again. The new
+    -- one has to be registered with the application in its turn, or
+    -- the application is left holding a window that is gone.
+    it "registers the window again when a patch replaces it" $ do
+      application <- Gtk.applicationNew
+        (Just "dev.gigtk4declarative.test.replacing")
+        [Gio.ApplicationFlagsNonUnique]
+      before <- newIORef []
+      after  <- newIORef []
+      _      <- Gtk.on application #activate $ do
+        void $ startInApplication
+          application
+          app { view = replacingView, inputs = [replaceThenClose] }
+        let record cell delay = void $ GLib.timeoutAdd
+              GLib.PRIORITY_DEFAULT
+              delay
+              (do
+                writeIORef cell =<< Gtk.applicationGetWindows application
+                pure False
+              )
+        record before 200
+        record after 800
+      _        <- Gio.applicationRun application (Just [])
+      first    <- readIORef before
+      second   <- readIORef after
+      leftOver <- Gtk.applicationGetWindows application
+      length first `shouldBe` 1
+      length second `shouldBe` 1
+      -- The window on screen at the end is not the window it started
+      -- with, which is what says the replacement happened at all.
+      (first == second) `shouldBe` False
+      length leftOver `shouldBe` 0
   where
     app = App
       { update = update'
@@ -97,6 +130,13 @@ main = hspec $
     closeAfter :: Producer AppEvent IO ()
     closeAfter = do
       liftIO (threadDelay 800000)
+      yield Close
+    -- A patch that replaces the window, and then the end of the loop.
+    replaceThenClose :: Producer AppEvent IO ()
+    replaceThenClose = do
+      liftIO (threadDelay 400000)
+      yield IncState
+      liftIO (threadDelay 600000)
       yield Close
     countThenClose :: Producer AppEvent IO ()
     countThenClose = do
@@ -114,6 +154,13 @@ data AppEvent = IncState | ThrowError | Close
 
 view' :: AppState -> AppView Gtk.Window AppEvent
 view' _ = bin Gtk.Window [] (widget Gtk.Label [])
+
+-- | A view whose two windows cannot be patched into one another: a
+-- property the first one sets and the second one does not is what
+-- makes the difference.
+replacingView :: AppState -> AppView Gtk.Window AppEvent
+replacingView 0 = bin Gtk.Window [#title := "first"] (widget Gtk.Label [])
+replacingView _ = bin Gtk.Window [] (widget Gtk.Label [])
 
 update' :: AppState -> AppEvent -> Transition AppState AppEvent
 update' state = \case

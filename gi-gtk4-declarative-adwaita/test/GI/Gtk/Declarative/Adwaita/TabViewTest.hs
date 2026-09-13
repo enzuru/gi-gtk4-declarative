@@ -156,6 +156,32 @@ prop_a_tab_that_keeps_its_key_keeps_its_widget = withTests 1 . property $ do
   same === True
   pressed === True
 
+-- | A page holds the widget it was made with, so a tab whose widget
+-- has to be replaced is a page that has to be made again. It keeps its
+-- key, its title, and its place.
+prop_a_tab_whose_widget_is_replaced_keeps_its_place =
+  withTests 1 . property $ do
+    (titles, kinds) <- evalIO $ do
+      let labels = markup (labelTabs [("a", "First"), ("b", "Second")])
+          mixed  = markup
+            defaultTabViewParams
+              { tabs =
+                [ Tab "a" "First" (widget Gtk.ToggleButton [#label := ("one" :: Text)])
+                , Tab "b" "Second" (widget Gtk.Label [#label := ("two" :: Text)])
+                ]
+              }
+      (window, state, view) <- openView labels
+      _                     <- runUI (patch' state labels mixed)
+      result                <- runUI $ do
+        titles'   <- pageTitles view
+        children  <- pageChildren view
+        buttons   <- traverse (Gtk.castTo Gtk.ToggleButton) children
+        pure (titles', map (maybe "other" (const "button")) buttons)
+      runUI (Gtk.windowDestroy window)
+      pure result
+    titles === ["First", "Second"]
+    kinds === ["button", "other"]
+
 -- | A key that was not there before is a page that was not there
 -- before, and the pages end up in the order the vector is in.
 prop_a_new_key_is_appended_in_the_right_place = withTests 1 . property $ do
