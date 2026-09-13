@@ -118,6 +118,22 @@ The view is the tabs and nothing else. An `AdwTabBar` or an
 `view` property, for which there is
 [`reference`](../attributes/properties.md).
 
+### The tab bar
+
+An `AdwTabBar` shows the tabs of a view it does not hold, so the two are
+joined by name, the way a stack switcher is joined to its stack:
+
+``` haskell
+container Adw.ToolbarView []
+  [ toolbarTop (widget Adw.TabBar [tabBarView "sheets"])
+  , toolbarContent (tabView [#name := "sheets"] theTabs)
+  ]
+```
+
+`GI.Gtk.Declarative.Adwaita.References` has `tabBarView` and
+`tabOverviewView`. A name that matches nothing is a warning through
+GLib, and leaves the bar showing no tabs.
+
 ### Closing a tab
 
 A program usually wants to ask something before a tab goes: whether to
