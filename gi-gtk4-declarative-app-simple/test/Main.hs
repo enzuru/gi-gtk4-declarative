@@ -4,7 +4,8 @@
 {-# LANGUAGE OverloadedLists  #-}
 module Main where
 
-import           Control.Concurrent            (threadDelay)
+import           Control.Concurrent            (newEmptyMVar, putMVar,
+                                                takeMVar, threadDelay)
 import qualified Control.Concurrent.Async      as Async
 import           Control.Monad                 (void)
 import           Data.IORef
@@ -55,7 +56,7 @@ main = hspec $
                                         [Gio.ApplicationFlagsNonUnique]
       windowsWhileRunning <- newIORef (0 :: Int)
       _                   <- Gtk.on application #activate $ do
-        startInApplication application app { inputs = [closeAfter] }
+        void $ startInApplication application app { inputs = [closeAfter] }
         -- Once the window is up, count what the application holds.
         _ <- GLib.timeoutAdd GLib.PRIORITY_DEFAULT 400 $ do
           windows <- Gtk.applicationGetWindows application
@@ -69,6 +70,22 @@ main = hspec $
       counted  <- readIORef windowsWhileRunning
       counted `shouldBe` 1
       length leftOver `shouldBe` 0
+    -- A program with something of its own to take down when the window
+    -- closes waits on the loop it started.
+    it "hands back the loop it started, which answers with the last state" $ do
+      application <- Gtk.applicationNew
+        (Just "dev.gigtk4declarative.test.waiting")
+        [Gio.ApplicationFlagsNonUnique]
+      finished <- newEmptyMVar
+      _        <- Gtk.on application #activate $ do
+        loop <- startInApplication application
+                                   app { inputs = [countThenClose] }
+        -- In a thread of its own: waiting here would keep the main loop
+        -- from starting, and the loop being waited on needs it.
+        void . Async.async $ Async.wait loop >>= putMVar finished
+      _     <- Gio.applicationRun application (Just [])
+      state <- timeout 1000000 (takeMVar finished)
+      state `shouldBe` Just 1
   where
     app = App
       { update = update'
@@ -80,6 +97,11 @@ main = hspec $
     closeAfter :: Producer AppEvent IO ()
     closeAfter = do
       liftIO (threadDelay 800000)
+      yield Close
+    countThenClose :: Producer AppEvent IO ()
+    countThenClose = do
+      liftIO (threadDelay 800000)
+      yield IncState
       yield Close
     closeLoop = do
       yield Close

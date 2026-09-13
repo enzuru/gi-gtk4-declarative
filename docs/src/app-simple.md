@@ -97,7 +97,7 @@ that loop, and initializes GTK, and the app goes inside it:
 main :: IO ()
 main = do
   application <- Gtk.applicationNew (Just "com.example.App") []
-  _ <- Gtk.on application #activate (startInApplication application app)
+  _ <- Gtk.on application #activate (void (startInApplication application app))
   void $ Gio.applicationRun application Nothing
 ```
 
@@ -112,5 +112,32 @@ the first window is built on the main loop a moment after `activate`
 returns, so without that hold the application would be gone before its
 window arrived.
 
+It answers with the loop it started. A program with something of its own
+to take down when the window closes waits on that:
+
+``` haskell
+_ <- Gtk.on application #activate $ do
+  loop <- startInApplication application app
+  void . Async.async $ do
+    _ <- Async.wait loop
+    stopTheKernel
+```
+
+The waiting goes in a thread of its own, because waiting in the
+`activate` handler would keep the main loop from starting, and the loop
+being waited on needs it.
+
 `runInApplication` is the loop itself, for a program that wants to place
 it in a thread of its own. It does not return until the app exits.
+
+Start it with `startInApplication` rather than by hand. Calling
+`runInApplication` from your own thread, with no hold on the
+application, does not fail where you wrote it: the application returns
+from `activate` holding no window and quits, and what you see is
+
+```
+Gtk-CRITICAL **: New application windows must be added after the
+GApplication::startup signal has been emitted
+```
+
+followed by a window that never appears.
