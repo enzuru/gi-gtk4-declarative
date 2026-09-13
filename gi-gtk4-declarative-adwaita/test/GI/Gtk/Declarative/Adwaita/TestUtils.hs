@@ -46,6 +46,15 @@ labelOf w = do
     Just l  -> Gtk.get l #label
     Nothing -> pure ""
 
+-- | Every widget below this one, in tree order, this one included.
+descendants :: Gtk.IsWidget parent => parent -> IO [Gtk.Widget]
+descendants root = Gtk.toWidget root >>= go
+ where
+  go w = do
+    children <- childrenOf w
+    below    <- concat <$> traverse go children
+    pure (w : below)
+
 -- | The labels below a widget, in tree order.
 descendantLabels :: Gtk.IsWidget parent => parent -> IO [Text]
 descendantLabels root = Gtk.toWidget root >>= go

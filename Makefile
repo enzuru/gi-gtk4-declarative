@@ -82,6 +82,7 @@ build:
 	  -outputdir $(BUILD)/adwaita-objects \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/HeaderBar.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/References.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Slots.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/TabView.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToolbarView.hs \
