@@ -7,7 +7,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | The bars of a toolbar view.
+-- | Widget-valued properties of the libadwaita widgets.
 --
 -- An @AdwToolbarView@ holds a content child, which is what
 -- 'GI.Gtk.Declarative.Bin.bin' sets, and any number of bars above and
@@ -27,6 +27,7 @@
 module GI.Gtk.Declarative.Adwaita.Slots
   ( toolbarTopBar
   , toolbarBottomBar
+  , titleWidget
   )
 where
 
@@ -63,6 +64,14 @@ toolbarBottomBar
   -> Attribute widget event
 toolbarBottomBar =
   slot bottomBarKey (setBar bottomBarKey Adw.toolbarViewAddBottomBar)
+
+-- | The widget in the middle of an @AdwHeaderBar@, in place of the
+-- window's title. An @AdwWindowTitle@ is what usually goes here.
+titleWidget
+  :: (Adw.IsHeaderBar widget, Gtk.IsWidget widget)
+  => Widget event
+  -> Attribute widget event
+titleWidget = slot "title-widget" Adw.headerBarSetTitleWidget
 
 topBarKey :: Text
 topBarKey = "gi-gtk4-declarative-top-bar"
