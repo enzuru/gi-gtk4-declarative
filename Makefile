@@ -81,8 +81,10 @@ build:
 	ghc -fno-code -i$(LIB) -i$(ADWAITA) $(WARNINGS) $(PACKAGES) \
 	  -outputdir $(BUILD)/adwaita-objects \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/HeaderBar.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Slots.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/TabView.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToolbarView.hs \
 	  $(GHC_RTS)
 
 # The examples are part of the build: they are what says the library is

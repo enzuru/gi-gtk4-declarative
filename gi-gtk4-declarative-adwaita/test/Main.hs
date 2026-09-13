@@ -10,6 +10,8 @@ import           System.IO
 
 import qualified GI.Gtk.Declarative.Adwaita.BinTest
                                                as BinTest
+import qualified GI.Gtk.Declarative.Adwaita.ContainerTest
+                                               as ContainerTest
 import qualified GI.Gtk.Declarative.Adwaita.TabViewTest
                                                as TabViewTest
 
@@ -26,7 +28,8 @@ main = do
   mainLoop <- GLib.mainLoopNew Nothing False
   pass     <- newEmptyMVar
   _        <- forkOS $ do
-    results <- sequence [BinTest.tests, TabViewTest.tests]
+    results <- sequence
+      [BinTest.tests, ContainerTest.tests, TabViewTest.tests]
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)
   GLib.mainLoopRun mainLoop

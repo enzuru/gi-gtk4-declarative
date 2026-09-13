@@ -41,7 +41,8 @@ mistake a program using it does not make.
 
 ## The bars of a toolbar view
 
-A toolbar view holds its content as a child, and its bars in slots:
+A toolbar view holds its content as a child, and one bar at each end in
+a slot:
 
 ``` haskell
 bin Adw.ToolbarView
@@ -51,9 +52,41 @@ bin Adw.ToolbarView
   theContent
 ```
 
-One bar at each end is what these two slots give. A view with more than
-one bar at an end adds the others with `adw_toolbar_view_add_top_bar`
-from an `afterCreated` action.
+A view with more than one bar at an end is a container instead, where
+every child says where it goes:
+
+``` haskell
+container Adw.ToolbarView []
+  [ toolbarTop (container Adw.HeaderBar [] [])
+  , toolbarTop (widget Adw.TabBar [])
+  , toolbarContent theGrid
+  , toolbarBottom (container Gtk.ActionBar [] [])
+  ]
+```
+
+The bars appear in the order they are given, top to bottom at each end.
+The two forms say the same thing, so pick one: a view is a `bin` or a
+`container`, not both.
+
+## The header bar
+
+An `AdwHeaderBar` is a container, whose children go at the start or at
+the end, and whose title is a property:
+
+``` haskell
+container Adw.HeaderBar
+  [titleWidget (widget Adw.WindowTitle [#title := name])]
+  [ headerBarStart (widget Gtk.Button [#iconName := "document-open"])
+  , headerBarEnd (widget Gtk.MenuButton [])
+  ]
+```
+
+A header bar with no `titleWidget` shows the window's title, which is
+what libadwaita does on its own.
+
+The names in `GI.Gtk.Declarative.Adwaita.HeaderBar` are the names
+`GI.Gtk.Declarative.Container.HeaderBar` uses for the GTK header bar, so
+a module that uses both wants a qualified import of one of them.
 
 ## Tabs
 

@@ -50,9 +50,10 @@ checkout is still in a directory of the old name.
   there is a cell rather than a row.
 - The libadwaita widgets. A third package,
   `gi-gtk4-declarative-adwaita`, holding `IsBin` instances for the
-  single-child widgets (`Adw.ApplicationWindow` and the rest), the two
-  toolbar-view bar slots, and a declarative `AdwTabView` whose tabs are
-  matched by a key of the caller's choosing. Nineteen properties in
+  single-child widgets (`Adw.ApplicationWindow` and the rest), the
+  header bar and the toolbar view as containers, the two toolbar-view
+  bar slots, and a declarative `AdwTabView` whose tabs are matched by a
+  key of the caller's choosing. Twenty-five properties in
   `gi-gtk4-declarative-adwaita/test`, and a
   [documentation page](docs/src/widgets/libadwaita.md).
 - Housekeeping. The dead `Markup.hs` stub is gone, `hie.yaml` names the
