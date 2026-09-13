@@ -159,6 +159,9 @@ NOT_MEASURED := $(shell find $(TEST) $(ADWTEST) $(APPTEST) -name '*.hs' \
 
 coverage:
 	@mkdir -p $(COVERAGE)
+	# A .tix file from an earlier run belongs to the programs of that
+	# run, and hpc says so rather than adding the two up.
+	@rm -f $(COVERAGE)/*.tix
 	ghc -fhpc -hpcdir $(COVERAGE)/lib-mix -i$(LIB) -i$(TEST) \
 	  $(WARNINGS) $(PACKAGES) -threaded \
 	  -outputdir $(COVERAGE)/lib-objects -o $(COVERAGE)/lib-tests \

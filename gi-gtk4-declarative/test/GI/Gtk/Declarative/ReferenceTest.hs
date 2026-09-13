@@ -15,6 +15,7 @@
 module GI.Gtk.Declarative.ReferenceTest where
 
 import           Control.Exception.Safe         ( bracket )
+import           Control.Monad                  ( join )
 import           Data.Maybe                     ( isJust )
 import           Data.Text                      ( Text )
 import           Data.Vector                    ( Vector )
@@ -121,6 +122,115 @@ prop_a_reference_that_names_nothing_points_at_nothing = withTests 1 . property $
       Gtk.windowDestroy window
       pure (isJust pointsAt')
   found === False
+
+-- * The references this module names
+--
+-- Each of these is one line delegating to a gi-gtk setter, and one
+-- line is where a wrong name hides, so each is rendered in a window
+-- and read back through the getter that goes with it.
+
+-- | Render a window, let the main loop resolve its references, and
+-- hand the window to the action.
+renderWindow :: Widget Event -> (Gtk.Window -> IO a) -> IO a
+renderWindow markup f = do
+  window <- runUI $ do
+    state <- create markup
+    Gtk.unsafeCastTo Gtk.Window =<< someStateWidget state
+  settle
+  result <- runUI (f window)
+  runUI (Gtk.windowDestroy window)
+  pure result
+
+-- | The stack a sidebar lists.
+prop_a_sidebar_finds_the_stack_it_names = withTests 1 . property $ do
+  found <- evalIO $ renderWindow
+    (bin
+      Gtk.Window
+      []
+      (container
+        Gtk.Box
+        []
+        [ BoxChild defaultBoxChildProperties
+          (widget Gtk.StackSidebar [sidebarStack "pages"])
+        , BoxChild defaultBoxChildProperties (stackNamed "pages")
+        ]
+      )
+    )
+    (\window -> do
+      sidebar <- firstOfType Gtk.StackSidebar window
+      stack   <- traverse Gtk.stackSidebarGetStack sidebar
+      traverse Gtk.widgetGetName (join stack)
+    )
+  found === Just "pages"
+
+-- | The widget whose key presses a search bar watches, which is
+-- usually the window itself.
+prop_a_search_bar_finds_the_widget_it_captures_keys_from =
+  withTests 1 . property $ do
+    found <- evalIO $ renderWindow
+      (bin
+        Gtk.Window
+        [#name := "the-window"]
+        (bin Gtk.SearchBar
+             [keyCaptureWidget "the-window"]
+             (widget Gtk.SearchEntry [])
+        )
+      )
+      (\window -> do
+        bar      <- firstOfType Gtk.SearchBar window
+        captured <- traverse Gtk.searchBarGetKeyCaptureWidget bar
+        traverse Gtk.widgetGetName (join captured)
+      )
+    found === Just "the-window"
+
+-- | The widget a label's mnemonic hands the keyboard to.
+prop_a_label_finds_its_mnemonic_widget = withTests 1 . property $ do
+  found <- evalIO $ renderWindow
+    (bin
+      Gtk.Window
+      []
+      (container
+        Gtk.Box
+        []
+        [ BoxChild defaultBoxChildProperties
+          (widget Gtk.Label [#label := ("_Name" :: Text), mnemonicWidget "the-entry"])
+        , BoxChild defaultBoxChildProperties
+                   (widget Gtk.Entry [#name := ("the-entry" :: Text)])
+        ]
+      )
+    )
+    (\window -> do
+      label     <- firstOfType Gtk.Label window
+      mnemonic  <- traverse Gtk.labelGetMnemonicWidget label
+      traverse Gtk.widgetGetName (join mnemonic)
+    )
+  found === Just "the-entry"
+
+-- | The widget a window activates when the user presses Enter.
+prop_a_window_finds_its_default_widget = withTests 1 . property $ do
+  found <- evalIO $ renderWindow
+    (bin Gtk.Window
+         [defaultWidget "the-button"]
+         (widget Gtk.Button [#name := ("the-button" :: Text)])
+    )
+    (\window -> do
+      theDefault <- Gtk.windowGetDefaultWidget window
+      traverse Gtk.widgetGetName theDefault
+    )
+  found === Just "the-button"
+
+-- | The first widget of this type below the window.
+firstOfType
+  :: Gtk.GObject widget
+  => (Gtk.ManagedPtr widget -> widget)
+  -> Gtk.Window
+  -> IO (Maybe widget)
+firstOfType ctor window = do
+  widgets <- descendants window
+  go widgets
+ where
+  go []       = pure Nothing
+  go (w : ws) = Gtk.castTo ctor w >>= maybe (go ws) (pure . Just)
 
 -- | The widget with this name anywhere below the window.
 namedBelow :: Gtk.Window -> Text -> IO (Maybe Gtk.Widget)
