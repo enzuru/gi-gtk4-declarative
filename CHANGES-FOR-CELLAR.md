@@ -565,3 +565,21 @@ tabBarView = reference $ \bar target -> case target of
 
 That is the whole of it, so the Adwaita module is a home for it rather
 than work.
+
+## Items 14, 15 and 16, as they landed
+
+Taken into Cellar on 2026-09-12.
+
+`startInApplication` handing back its `Async` is what Cellar needed:
+starting the loop and waiting on it to stop the kernel and drop the file
+monitors is four lines now, with no copy of the library's own body in
+the middle.
+
+`GI.Gtk.Declarative.Adwaita.References.tabBarView` replaced the local
+copy, so the tab bar names the view it shows in the same way a stack
+switcher names its stack, and `Cellar.App.View` has no `reference` of
+its own any more.
+
+That leaves item 16, the toast, which nobody needs to do anything about:
+a toast is a thing that happens rather than a thing that is, and
+catching the overlay with `afterCreated` is a fair way to say so.

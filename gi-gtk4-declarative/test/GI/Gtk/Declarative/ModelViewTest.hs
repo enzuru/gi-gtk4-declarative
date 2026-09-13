@@ -45,7 +45,8 @@ import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.TestUtils
 
 data Event
-  = Toggled Word
+  = Clicked
+  | Toggled Word
   | Selected Word
   | Activated Word
   | Resized Int32
@@ -93,6 +94,44 @@ mixedRows items = listView
       )
     )
     { rows = items
+    }
+
+-- | Rows with an event controller on each, which is what a row that
+-- answers a click looks like.
+clickableRows :: Vector Text -> Widget Event
+clickableRows items = listView
+  []
+  (defaultListViewParams
+      (\text ->
+        widget Gtk.Label [#label := text, onClickPressed (\_n _x _y -> Clicked)]
+      )
+    )
+    { rows = items
+    }
+
+-- | Rows with a button each, which are compared, so that a patch
+-- leaves them where they are.
+comparedButtonRows :: Vector (Word, Text) -> Widget Event
+comparedButtonRows items = listView
+  []
+  (defaultListViewParams
+      (\(row, text) ->
+        widget Gtk.ToggleButton [#label := text, on #toggled (Toggled row)]
+      )
+    )
+    { rows         = items
+    , rowUnchanged = Just (==)
+    }
+
+-- | Rows that cannot be selected and can be activated, which is what a
+-- view whose rows are not a choice but can still be opened looks like.
+unselectableActivatableRows :: Vector Text -> Widget Event
+unselectableActivatableRows items = listView
+  []
+  (defaultListViewParams (\text -> widget Gtk.Label [#label := text]))
+    { rows          = items
+    , onActivated   = Just Activated
+    , selectionMode = SelectNothing
     }
 
 -- | Rows whose label is the item and something else, so that a row
@@ -299,6 +338,99 @@ prop_a_compared_row_that_did_not_change_is_left_alone =
       pure (compared', redrawn')
     compared === ["one", "two"]
     redrawn === ["one!", "two!"]
+
+-- | A row's widget is used again for another row as the view scrolls,
+-- and a controller lives on the widget rather than on the
+-- subscription, so a row that is drawn again must not leave another
+-- controller behind.
+prop_a_row_keeps_one_controller_however_often_it_is_drawn =
+  withTests 1 . property $ do
+    (baseline, counts) <- evalIO $ do
+      baseline' <- runUI
+        (countControllers =<< Gtk.toWidget =<< Gtk.new Gtk.Label [])
+      counts' <- renderViews
+        [ clickableRows ["one", "two"]
+        , clickableRows ["ONE", "two"]
+        , clickableRows ["one", "TWO"]
+        , clickableRows ["one", "two"]
+        ]
+        rowControllerCounts
+      pure (baseline', counts')
+    counts === replicate (length counts) (baseline + 1)
+
+-- | A row that a patch left alone still emits. Its subscription is the
+-- one from before, which is the point: the markup is the same markup,
+-- so its handlers are the same handlers.
+prop_a_row_that_was_left_alone_still_emits = withTests 1 . property $ do
+  events <- evalIO $ do
+    received <- newTBQueueIO 10
+    let markup = comparedButtonRows [(0, "first"), (1, "second")]
+    (window, state, view, sub) <- runUI $ do
+      state'   <- create markup
+      view'    <- someStateWidget state'
+      window'  <- Gtk.new Gtk.Window
+                          [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      scroller <- Gtk.new Gtk.ScrolledWindow []
+      Gtk.scrolledWindowSetChild scroller (Just view')
+      Gtk.windowSetChild window' (Just scroller)
+      Gtk.windowPresent window'
+      sub' <- subscribe markup state' (atomically . writeTBQueue received)
+      pure (window', state', view', sub')
+    settle
+    -- Two patches that change nothing, which the comparison answers
+    -- for: the rows are not drawn again, and not subscribed to again.
+    _ <- runUI (patch' state markup markup)
+    settle
+    _ <- runUI (patch' state markup markup)
+    settle
+    runUI $ do
+      buttons <- rowButtons view
+      case buttons of
+        (button : _) -> Gtk.toggleButtonSetActive button True
+        []           -> fail "no rows on screen"
+      cancel sub
+      Gtk.windowDestroy window
+    atomically (flushTBQueue received)
+  events === [Toggled 0]
+
+-- | Nothing is selected under 'SelectNothing', but a row can still be
+-- activated, which is what a double click and Enter go through.
+prop_a_view_that_selects_nothing_still_activates = withTests 1 . property $ do
+  (found, events) <- evalIO $ do
+    received <- newTBQueueIO 10
+    let markup = unselectableActivatableRows ["one", "two", "three"]
+    (window, view, sub) <- runUI $ do
+      state    <- create markup
+      view'    <- someStateWidget state
+      window'  <- Gtk.new Gtk.Window
+                          [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      scroller <- Gtk.new Gtk.ScrolledWindow []
+      Gtk.scrolledWindowSetChild scroller (Just view')
+      Gtk.windowSetChild window' (Just scroller)
+      Gtk.windowPresent window'
+      sub' <- subscribe markup state (atomically . writeTBQueue received)
+      pure (window', view', sub')
+    settle
+    found' <- runUI $ do
+      position <- toGVariant (1 :: Word32)
+      Gtk.widgetActivateAction view "list.activate-item" (Just position)
+    settle
+    runUI (cancel sub >> Gtk.windowDestroy window)
+    events' <- atomically (flushTBQueue received)
+    pure (found', events')
+  found === True
+  events === [Activated 1]
+
+-- | How many controllers each row on screen carries.
+rowControllerCounts :: Gtk.Widget -> IO [Word32]
+rowControllerCounts view = do
+  widgets <- descendants view
+  labels  <- traverse (Gtk.castTo Gtk.Label) widgets
+  traverse countControllers =<< traverse Gtk.toWidget (mapMaybe id labels)
+
+countControllers :: Gtk.Widget -> IO Word32
+countControllers widget' =
+  Gtk.widgetObserveControllers widget' >>= Gio.listModelGetNItems
 
 -- | Selecting a row is what a click on it does, and the action GTK
 -- puts on the view for exactly that is how a test does it.

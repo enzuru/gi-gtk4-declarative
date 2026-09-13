@@ -147,6 +147,33 @@ prop_a_controller_that_goes_away_is_taken_off = withTests 1 . property $ do
   withController === 1
   without === 0
 
+-- | A slot holds one kind of controller. When the attributes ask for
+-- another kind in the same place, the controller that is there goes
+-- and the new one takes its place, rather than both being on the
+-- widget or the old one being read as the new one's type.
+prop_a_slot_that_is_asked_for_another_kind_is_filled_again =
+  withTests 1 . property $ do
+    (added, clicks) <- evalIO $ runUI $ bracket (Gtk.new Gtk.Window []) Gtk.windowDestroy $ \window -> do
+      let focused :: Widget Event
+          focused = widget Gtk.Entry [onFocusEnter Focused]
+          clicked :: Widget Event
+          clicked = widget Gtk.Entry [onClickPressed (\_n _x _y -> Clicked)]
+      state         <- create focused
+      entry         <- someStateWidget state
+      Gtk.windowSetChild window (Just entry)
+      baseline      <- countControllers entry
+      baselineClick <- countClickGestures entry
+      sub           <- subscribe focused state (const (pure ()))
+      cancel sub
+      state'        <- patch' state focused clicked
+      sub'          <- subscribe clicked state' (const (pure ()))
+      after         <- countControllers entry
+      afterClick    <- countClickGestures entry
+      cancel sub'
+      pure (after - baseline, afterClick - baselineClick)
+    added === 1
+    clicks === 1
+
 -- | Cancelling stops the events, even though the controller stays.
 prop_a_cancelled_subscription_stops_emitting = withTests 1 . property $ do
   events <- evalIO $ runUI $ bracket (Gtk.new Gtk.Window []) Gtk.windowDestroy $ \window -> do
@@ -179,6 +206,13 @@ prop_a_cancelled_subscription_stops_emitting = withTests 1 . property $ do
 allSame :: Eq a => [a] -> Bool
 allSame []             = True
 allSame (first : rest) = all (== first) rest
+
+-- | How many of the widget's controllers are click gestures.
+countClickGestures :: Gtk.Widget -> IO Word32
+countClickGestures widget' = do
+  controllers <- controllersOf widget'
+  gestures    <- traverse (Gtk.castTo Gtk.GestureClick) controllers
+  pure (fromIntegral (length (catMaybes gestures)))
 
 controllersOf :: Gtk.Widget -> IO [Gtk.EventController]
 controllersOf widget' = do
