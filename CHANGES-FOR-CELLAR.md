@@ -453,3 +453,115 @@ What to do. Give `Adw.ToolbarView` an `IsContainer` instance whose child
 type says which end a bar belongs to, in the shape of
 `Container/ActionBar.hs`, which already has start, centre, and end
 children. Keep the content child as `IsBin`.
+
+## What items 10 and 11 bought
+
+Measured the same way as above, with `getCPUTime` around `patch`, after
+both landed and after Cellar's rows were changed to carry what their
+cells say so that `rowUnchanged = Just (==)` is honest:
+
+- One cell edited, which is the case that matters: **34 ms to under
+  1 ms**.
+- A patch where every row on screen really did change, such as a
+  workbook opening: **34 ms to 16-30 ms**.
+- A patch that rebuilds the columns: **230-550 ms to 141-172 ms**.
+
+The grid is no longer the slow part of Cellar. Thank you for both.
+
+One thing for whoever writes the documentation: `rowUnchanged` needs the
+caller to make the item hold everything the row draws from, and Cellar's
+first version did not -- its items were row numbers and the renderers
+read the sheet through a closure. The haddock says this, and it is worth
+an example as well, because the failure it prevents is a row that
+silently stops repainting.
+
+## 14. A reference to an Adwaita widget
+
+Cellar's header bar and tab bar are declarative now, and items 12 and 13
+were what they needed. One small thing was missing.
+
+`AdwTabBar` shows the tabs of an `AdwTabView`, which it holds in its
+`view` property: a widget-valued property pointing at a widget somewhere
+else in the window, exactly what `GI.Gtk.Declarative.References` is for.
+That module covers the GTK cases, `switcherStack` and the rest, and the
+Adwaita package has none.
+
+Cellar points the bar at the view with `afterCreated` at the moment,
+which works only because the view is not in the same tree: it is still
+the window's, built by the Blueprint file. When Phase 4 puts both in one
+tree, a reference by name is what this wants:
+
+```haskell
+widget Adw.TabBar [tabBarView "sheet-tabs"]
+```
+
+What to do. `GI.Gtk.Declarative.Adwaita.References`, with `tabBarView`
+over `adw_tab_bar_set_view`, in the shape of the GTK module. Anything
+else in libadwaita of that shape can go in beside it, though this is the
+only one Cellar needs.
+
+Not urgent. Cellar's workaround holds until Phase 4, and Phase 4 is the
+next thing after this.
+
+## After the loop changed hands
+
+Cellar's window is now one state value, one view function and one
+update, run by `runInApplication` inside the `AdwApplication` Cellar
+already made. Everything asked for above was used, and all of it worked
+as written: the toolbar view with its three top bars, the Adwaita header
+bar and its title slot, the toast overlay as a bin, the keyed tab view
+with its close protocol, `afterCreated`, `rowUnchanged`, and
+`SelectNothing`. Two small things are left, and neither blocks anything.
+
+### 15. A start that hands back what it started
+
+`startInApplication` is the right function and its haddock says so.
+What it does not do is let the caller do anything when the loop ends,
+and Cellar has something to do there: stop the kernel process and drop
+the file monitors. So Cellar copies the body of `startInApplication` --
+hold the application, run in a thread, release on the main loop -- with
+its own two lines in the middle.
+
+What to do. Have `startInApplication` answer with the
+`Async.Async state` it started. A caller that wants nothing can ignore
+it, and a caller with something to tear down can wait on it.
+
+One thing for the haddock, because the failure mode is quiet. Calling
+`runInApplication` from a thread of your own without holding the
+application does not fail where you did it. The application returns from
+`activate` holding no window, quits, and what you see is
+`Gtk-CRITICAL **: New application windows must be added after the
+GApplication::startup signal has been emitted` followed by a window that
+never appears. It cost an hour here. The existing note says to use
+`startInApplication`; saying what happens if you do not would have
+saved it.
+
+### 16. A toast without a handle, one day
+
+`Adw.ToastOverlay` is a bin, which is all Cellar needs to put one in the
+window. Showing a toast is another matter: `adw_toast_overlay_add_toast`
+wants the overlay, so Cellar catches it with `afterCreated` and keeps it
+in a reference, which is the one widget handle left in a window that is
+otherwise a function of its state.
+
+A `toasts` parameter in the shape of `closeAnswer` -- a command the view
+acts on once and the state then clears -- would close that last gap.
+Not urgent: a toast is a thing that happens rather than a thing that is,
+so the handle is defensible. Worth a thought if the Adwaita package ever
+grows a params record for the overlay.
+
+### 14 again, for the record
+
+The reference to an `AdwTabBar`'s view was needed exactly where it was
+predicted to be, once the bar and the view were in one tree. Cellar
+carries it locally in the meantime, and it is four lines:
+
+```haskell
+tabBarView :: Text -> Attribute Adw.TabBar event
+tabBarView = reference $ \bar target -> case target of
+  Nothing -> Adw.tabBarSetView bar (Nothing :: Maybe Adw.TabView)
+  Just widget' -> Adw.tabBarSetView bar =<< Gtk.castTo Adw.TabView widget'
+```
+
+That is the whole of it, so the Adwaita module is a home for it rather
+than work.
