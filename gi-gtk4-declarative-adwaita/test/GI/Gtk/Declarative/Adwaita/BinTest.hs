@@ -97,6 +97,7 @@ cases =
   , binCase "Clamp"             Adw.Clamp
   , binCase "Dialog"            Adw.Dialog
   , binCase "ToolbarView"       Adw.ToolbarView
+  , binCase "TabOverview"       Adw.TabOverview
   ]
 
 prop_every_bin_holds_the_child_it_was_given = withTests 1 . property $ do

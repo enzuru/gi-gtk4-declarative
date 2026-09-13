@@ -15,6 +15,11 @@
 -- remove.
 module GI.Gtk.Declarative.ContainerTest where
 
+import           Control.Concurrent.STM
+import           Data.Maybe                     ( catMaybes
+                                                , listToMaybe
+                                                , mapMaybe
+                                                )
 import           Data.Text                      ( Text )
 import           Data.Traversable               ( for )
 import qualified Data.Vector                   as Vector
@@ -30,9 +35,19 @@ import           GI.Gtk.Declarative.Container.Fixed
 import           GI.Gtk.Declarative.Container.Grid
 import           GI.Gtk.Declarative.Container.HeaderBar
 import           GI.Gtk.Declarative.Container.Stack
+import           Data.Void                      ( vacuous )
+import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.State       ( someStateWidget )
 import           GI.Gtk.Declarative.TestUtils
+import           GI.Gtk.Declarative.TestWidget  ( TestWidget(..)
+                                                , toTestWidget
+                                                )
 
 -- * Markup helpers
+
+-- | What the buttons in these tests emit.
+data Event = Toggled
+  deriving (Eq, Show)
 
 label :: Text -> Widget ()
 label t = widget Gtk.Label [#label := t]
@@ -117,6 +132,71 @@ prop_box_children_follow_the_orientation = once $ do
   -- Along the new orientation, not the old one.
   align === Gtk.AlignCenter
   margin === 5
+
+-- | A child whose own patch says to keep it as it is still has its
+-- child properties applied again, because the container around it may
+-- have changed in a way that changes what they mean.
+--
+-- A custom widget is what says to keep it: an ordinary widget is
+-- patched, and this branch is for a child that is not.
+prop_a_child_that_is_kept_still_follows_the_orientation = once $ do
+  (align, margin) <- evalIO $ renderAll
+    [ boxOf Gtk.OrientationVertical
+    , boxOf Gtk.OrientationHorizontal
+    ]
+    (\w -> do
+      Just child <- Gtk.widgetGetFirstChild w
+      (,) <$> Gtk.widgetGetHalign child <*> Gtk.widgetGetMarginStart child
+    )
+  align === Gtk.AlignCenter
+  margin === 5
+ where
+  boxOf orientation = container
+    Gtk.Box
+    [#orientation := orientation]
+    [ BoxChild defaultBoxChildProperties { fill = False, padding = 5 }
+               (vacuous (toTestWidget (TestCustomWidget (Just "type here"))))
+    ]
+
+-- | Markup that does not match the state it is patched against.
+--
+-- The library holds the widgets of a render beside the markup they
+-- were built from, and every patch is given the markup of the render
+-- before. A caller that hands it markup from some other render is out
+-- of step, and these are the branches that put the container back in
+-- order: widgets with no markup are taken off, and markup with no
+-- widget is built.
+prop_a_container_puts_itself_in_order_when_the_markup_is_out_of_step =
+  once $ do
+    (grown, shrunk, strays) <- evalIO $ do
+      -- Three widgets, told that there was one, and asked for three.
+      grown'  <- outOfStep (boxOf ["a", "b", "c"])
+                           (boxOf ["a"])
+                           (boxOf ["one", "two", "three"])
+      -- One widget, told that there were three, and asked for one.
+      shrunk' <- outOfStep (boxOf ["a"])
+                           (boxOf ["a", "b", "c"])
+                           (boxOf ["one"])
+      -- Three widgets, told that there was one, and asked for one.
+      strays' <- outOfStep (boxOf ["a", "b", "c"])
+                           (boxOf ["a"])
+                           (boxOf ["one"])
+      pure (grown', shrunk', strays')
+    grown === ["one", "two", "three"]
+    shrunk === ["one"]
+    strays === ["one"]
+ where
+  boxOf :: [Text] -> Widget ()
+  boxOf ts = container
+    Gtk.Box
+    []
+    (Vector.fromList [ BoxChild defaultBoxChildProperties (label t) | t <- ts ])
+  outOfStep
+    :: Widget () -> Widget () -> Widget () -> IO (Vector.Vector Text)
+  outOfStep built old new = do
+    state  <- runUI (create built)
+    state' <- runUI (patch' state old new)
+    runUI (childLabels =<< someStateWidget state')
 
 -- * Grid
 
@@ -525,6 +605,148 @@ prop_flow_box_children_are_taken_away = once $ do
     Gtk.FlowBox
     []
     (Vector.fromList [ bin Gtk.FlowBoxChild [] (label t) | t <- ts ])
+
+-- | A child that changes which end of an action bar it is at is built
+-- again, because where a child is packed is not something a patch can
+-- change.
+prop_an_action_bar_child_that_changes_end_is_built_again = once $ do
+  (built, labels) <- evalIO $ do
+    let bar children = container Gtk.ActionBar [] children :: Widget ()
+        atStart = bar [actionBarStart (label "moving")]
+        atEnd   = bar [actionBarEnd (label "moving")]
+    state   <- runUI (create atStart)
+    widget' <- runUI (someStateWidget state)
+    before  <- runUI (labelNamed widget' "moving")
+    _       <- runUI (patch' state atStart atEnd)
+    after   <- runUI (labelNamed widget' "moving")
+    labels' <- runUI (descendantLabels widget')
+    pure (before /= after, labels')
+  built === True
+  labels === ["moving"]
+
+-- | A page of a stack that is given another name is built again under
+-- it, rather than kept under the old one.
+prop_a_stack_child_that_is_renamed_is_built_again = once $ do
+  (built, names) <- evalIO $ do
+    let stackOf n = container
+          Gtk.Stack
+          []
+          [StackChild defaultStackChildProperties { name = n } (label "page")]
+          :: Widget ()
+    state   <- runUI (create (stackOf "before"))
+    widget' <- runUI (someStateWidget state)
+    first   <- runUI (labelNamed widget' "page")
+    _       <- runUI (patch' state (stackOf "before") (stackOf "after"))
+    second  <- runUI (labelNamed widget' "page")
+    names'  <- runUI $ do
+      stack    <- Gtk.unsafeCastTo Gtk.Stack widget'
+      children <- childWidgets stack
+      for children $ \child -> do
+        page' <- Gtk.stackGetPage stack child
+        Gtk.stackPageGetName page'
+    pure (first /= second, names')
+  built === True
+  names === [Just "after"]
+
+-- | A child of a flow box that cannot be patched is built again and
+-- put back at its own position.
+prop_a_flow_box_child_that_is_replaced_keeps_its_place = once $ do
+  after <- evalIO $ renderAll
+    [ container
+      Gtk.FlowBox
+      []
+      (Vector.fromList
+        [ bin Gtk.FlowBoxChild [] (label "a")
+        , bin Gtk.FlowBoxChild [#name := ("b" :: Text)] (label "b")
+        , bin Gtk.FlowBoxChild [] (label "c")
+        ]
+      )
+    , container
+      Gtk.FlowBox
+      []
+      (Vector.fromList
+        [ bin Gtk.FlowBoxChild [] (label "a")
+        , bin Gtk.FlowBoxChild [] (label "B")
+        , bin Gtk.FlowBoxChild [] (label "c")
+        ]
+      )
+    ]
+    nestedChildLabels
+  after === ["a", "B", "c"]
+
+-- | The main child of an overlay and the widgets on top of it are each
+-- built again where they are.
+prop_overlay_children_that_are_replaced_keep_their_places = once $ do
+  (main', labels) <- evalIO $ renderAll
+    [ container
+      Gtk.Overlay
+      []
+      (Vector.fromList
+        [ widget Gtk.Label [#label := ("below" :: Text), #selectable := True]
+        , widget Gtk.Label [#label := ("above" :: Text), #selectable := True]
+        ]
+      )
+    , container Gtk.Overlay
+                []
+                (Vector.fromList [label "BELOW", label "ABOVE"])
+    ]
+    (\w -> do
+      Just overlay <- Gtk.castTo Gtk.Overlay w
+      child        <- Gtk.overlayGetChild overlay
+      (,) <$> traverse labelOf child <*> descendantLabels overlay
+    )
+  main' === Just "BELOW"
+  labels === ["BELOW", "ABOVE"]
+
+-- | A widget inside an action bar and a widget inside a stack emit
+-- like any other, which says their child types are subscribed to
+-- rather than only rendered.
+prop_children_of_the_positional_containers_emit = once $ do
+  (fromBar, fromStack) <- evalIO $ do
+    fromBar'   <- emitting
+      (container Gtk.ActionBar [] [actionBarStart (toggle "in the bar")])
+    fromStack' <- emitting
+      (container
+        Gtk.Stack
+        []
+        [ StackChild defaultStackChildProperties { name = "one" }
+                     (toggle "in the stack")
+        ]
+      )
+    pure (fromBar', fromStack')
+  fromBar === [Toggled]
+  fromStack === [Toggled]
+ where
+  toggle text =
+    widget Gtk.ToggleButton [#label := text, on #toggled Toggled] :: Widget Event
+
+-- | Render markup, press the first toggle button in it, and say what
+-- came out.
+emitting :: Widget Event -> IO [Event]
+emitting markup = do
+  received <- newTBQueueIO 10
+  state    <- runUI (create markup)
+  widget'  <- runUI (someStateWidget state)
+  sub      <- runUI (subscribe markup state (atomically . writeTBQueue received))
+  runUI $ do
+    widgets <- descendants widget'
+    buttons <- traverse (Gtk.castTo Gtk.ToggleButton) widgets
+    case mapMaybe id buttons of
+      (button : _) -> Gtk.toggleButtonSetActive button True
+      []           -> fail "no button in the markup"
+  runUI (cancel sub)
+  atomically (flushTBQueue received)
+
+-- | The label below this widget that says this, if there is one.
+labelNamed :: Gtk.Widget -> Text -> IO (Maybe Gtk.Widget)
+labelNamed root text = do
+  widgets <- descendants root
+  found   <- traverse matching widgets
+  pure (listToMaybe (catMaybes found))
+ where
+  matching w = do
+    said <- labelOf w
+    pure (if said == text then Just w else Nothing)
 
 -- * Bins
 

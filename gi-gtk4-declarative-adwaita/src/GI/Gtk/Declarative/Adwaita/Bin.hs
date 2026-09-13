@@ -60,6 +60,12 @@ instance IsBin Adw.Dialog where
   setBinChild = Adw.dialogSetChild
   getBinChild = Adw.dialogGetChild
 
+-- | The child an @AdwTabOverview@ shows when it is not open, which is
+-- the tab view itself or something holding it.
+instance IsBin Adw.TabOverview where
+  setBinChild = Adw.tabOverviewSetChild
+  getBinChild = Adw.tabOverviewGetChild
+
 -- | The /content/ of a toolbar view. Its bars are separate, and go in
 -- the slots from "GI.Gtk.Declarative.Adwaita.Slots".
 instance IsBin Adw.ToolbarView where
