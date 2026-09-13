@@ -42,6 +42,27 @@ name. Cabal is unaffected, because it names each package it passes to
 the compiler. The Makefile hides the copy, because a call to GHC that
 does not name its packages sees both.
 
+## What the tests reach
+
+```
+make coverage
+```
+
+This builds the three test programs again with GHC's own coverage
+(`-fhpc`), runs them under Xvfb, and prints what each reached, with a
+line per module for the library itself. It is not part of `make check`,
+because it builds everything a second time.
+
+There are three reports rather than one. `hpc` adds up several runs of
+one program, and these are three programs, each compiled by its own call
+to GHC.
+
+Two things the numbers do not count. The input test is a fourth program,
+driven by `tests/gui-input.sh`, and the key presses and clicks it covers
+are not in these reports. And a widget class instance whose methods the
+library never calls, such as `getBinChild`, reads as uncovered whatever
+the tests do.
+
 ## Running a GTK 4 program without a screen
 
 A GTK 4 program under Xvfb needs two settings, or it starts, draws
