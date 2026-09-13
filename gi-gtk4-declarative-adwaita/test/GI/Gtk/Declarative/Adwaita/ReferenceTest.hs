@@ -19,6 +19,7 @@ import           Hedgehog                hiding ( label )
 
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.Adwaita.References
+import           GI.Gtk.Declarative.Adwaita.Bin ( )
 import           GI.Gtk.Declarative.Adwaita.TabView
 import           GI.Gtk.Declarative.Adwaita.TestUtils
 import           GI.Gtk.Declarative.Adwaita.ToolbarView
@@ -96,6 +97,47 @@ prop_a_patched_reference_points_at_the_other_view =
           (_bar, view) <- barAndView widget'
           traverse Gtk.widgetGetName view
     found === Just "sheets"
+
+-- | A tab overview points at a view by name in the same way a tab bar
+-- does.
+prop_a_tab_overview_finds_the_view_it_names = withTests 1 . property $ do
+  found <- evalIO $ render
+    [ bin
+        Adw.TabOverview
+        [tabOverviewView "sheets"]
+        (tabView
+          [#name := ("sheets" :: Text)]
+          defaultTabViewParams
+            { tabs =
+              [Tab "a" "First" (widget Gtk.Label [#label := ("one" :: Text)])]
+            }
+        )
+    ]
+    (\widget' -> do
+      overview <- Gtk.unsafeCastTo Adw.TabOverview widget'
+      view     <- Adw.tabOverviewGetView overview
+      traverse Gtk.widgetGetName view
+    )
+  found === Just "sheets"
+
+-- | A name that points at a widget of the wrong kind leaves the
+-- property unset, and says so through GLib.
+prop_a_tab_bar_that_names_the_wrong_kind_points_at_nothing =
+  withTests 1 . property $ do
+    found <- evalIO $ render
+      [ container
+          Adw.ToolbarView
+          []
+          [ toolbarTop (widget Adw.TabBar [tabBarView "not-a-view"])
+          , toolbarContent
+            (widget Gtk.Label [#name := ("not-a-view" :: Text)])
+          ]
+      ]
+      (\widget' -> do
+        (_bar, view) <- barAndView widget'
+        pure (maybe False (const True) view)
+      )
+    found === False
 
 tests :: IO Bool
 tests = checkParallel $$(discover)
