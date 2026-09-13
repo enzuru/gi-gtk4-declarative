@@ -69,9 +69,12 @@ import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.Widget
 
 -- | One realized row.
-data Row event = Row
+data Row item event = Row
   { rowMarkup :: Widget event
   -- ^ What this row currently shows.
+  , rowItem   :: item
+  -- ^ The item it was drawn from, which is what says whether it has to
+  -- be drawn again.
   , rowState  :: SomeState
   -- ^ The state of the widget showing it.
   , rowIndex  :: Int
@@ -148,7 +151,11 @@ data ViewState item event = ViewState
   -- renderer under the empty key.
   , viewSink       :: IORef (event -> IO ())
   -- ^ Where a row's events go. A no-op until the view is subscribed to.
-  , viewRows       :: IORef (HashMap Word (Row event))
+  , viewRows       :: IORef (HashMap Word (Row item event))
+  , viewUnchanged  :: IORef (Maybe (item -> item -> Bool))
+  -- ^ Whether a row on screen can be left alone, given the item it was
+  -- drawn from and the item it would be drawn from now. Nothing draws
+  -- every row again on every patch.
   , viewCommands   :: IORef Commands
   , viewOnSelected :: IORef (Maybe (Word -> event))
   , viewOnActivated :: IORef (Maybe (Word -> event))
@@ -216,6 +223,7 @@ newViewState mode items renderers = do
     <*> newIORef renderers
     <*> newIORef noSink
     <*> newIORef HashMap.empty
+    <*> newIORef Nothing
     <*> newIORef (Commands Nothing Nothing)
     <*> newIORef Nothing
     <*> newIORef Nothing
@@ -245,7 +253,7 @@ bindCell state column key cell = do
   renderers <- readIORef (viewRenderers state)
   case (index >>= (items Vector.!?), HashMap.lookup column renderers) of
     (Just value, Just render) ->
-      showRow state column key cell (maybe 0 id index) (render value)
+      showRow state column key cell (maybe 0 id index) value (render value)
     _ -> pure ()
 
 -- | The row this cell is bound to, read from its stand-in object.
@@ -264,9 +272,10 @@ showRow
   -> Word
   -> Cell
   -> Int
+  -> item
   -> Widget event
   -> IO ()
-showRow state column key cell index markup = do
+showRow state column key cell index value markup = do
   rows <- readIORef (viewRows state)
   row  <- case HashMap.lookup key rows of
     Just old -> do
@@ -278,11 +287,11 @@ showRow state column key cell index markup = do
           created <- createNew
           cellSetChild cell . Just =<< someStateWidget created
           pure created
-      pure (Row markup newState index column cell (pure ()))
+      pure (Row markup value newState index column cell (pure ()))
     Nothing -> do
       created <- create markup
       cellSetChild cell . Just =<< someStateWidget created
-      pure (Row markup created index column cell (pure ()))
+      pure (Row markup value created index column cell (pure ()))
   cancelRow <- subscribeRow state markup (rowState row)
   modifyIORef' (viewRows state) (HashMap.insert key row { rowCancel = cancelRow })
 
@@ -318,29 +327,40 @@ teardownCell state key = do
 -- Without this, a patch that changes what an item says while leaving
 -- the number of items alone would not reach the screen: the model has
 -- not changed, so GTK has no reason to bind anything.
+--
+-- A view that says when a row has not changed is taken at its word,
+-- and that row is left as it is: not rendered, not patched, and not
+-- subscribed to again. Drawing a row costs more than everything else
+-- in a patch of a view put together, and a view of six hundred cells
+-- usually has two of them to change.
 rebindRows :: ViewState item event -> IO ()
 rebindRows state = do
   rows      <- readIORef (viewRows state)
   items     <- readIORef (viewItems state)
   renderers <- readIORef (viewRenderers state)
+  unchanged <- readIORef (viewUnchanged state)
   for_ (HashMap.toList rows) $ \(key, row) ->
     for_ ((,) <$> items Vector.!? rowIndex row
               <*> HashMap.lookup (rowColumn row) renderers)
-      $ \(value, render) -> do
-      let markup = render value
-      rowCancel row
-      newState <- case patch (rowState row) (rowMarkup row) markup of
-        Modify  modify    -> modify
-        Keep              -> pure (rowState row)
-        Replace createNew -> do
-          created <- createNew
-          cellSetChild (rowCell row) . Just =<< someStateWidget created
-          pure created
-      cancelRow <- subscribeRow state markup newState
-      modifyIORef'
-        (viewRows state)
-        (HashMap.insert key row { rowMarkup = markup
-                                , rowState  = newState
-                                , rowCancel = cancelRow
-                                }
-        )
+      $ \(value, render) ->
+          case unchanged of
+            Just same | same (rowItem row) value -> pure ()
+            _                                    -> do
+              let markup = render value
+              rowCancel row
+              newState <- case patch (rowState row) (rowMarkup row) markup of
+                Modify  modify    -> modify
+                Keep              -> pure (rowState row)
+                Replace createNew -> do
+                  created <- createNew
+                  cellSetChild (rowCell row) . Just =<< someStateWidget created
+                  pure created
+              cancelRow <- subscribeRow state markup newState
+              modifyIORef'
+                (viewRows state)
+                (HashMap.insert key row { rowMarkup = markup
+                                        , rowItem   = value
+                                        , rowState  = newState
+                                        , rowCancel = cancelRow
+                                        }
+                )

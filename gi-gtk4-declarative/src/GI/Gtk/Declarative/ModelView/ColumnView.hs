@@ -134,6 +134,18 @@ data ColumnViewParams item event = ColumnViewParams
   -- ^ Scroll to this row, on the same terms.
   , onSelected  :: Maybe (Word -> event)
   , onActivated :: Maybe (Word -> event)
+  , rowUnchanged :: Maybe (item -> item -> Bool)
+  -- ^ Whether a row that is on screen can be left as it is, given the
+  -- item it was drawn from and the item it would be drawn from now.
+  -- @Just (==)@ is the usual answer, and the one to give: a patch then
+  -- draws the cells of the rows whose items changed rather than every
+  -- cell on screen, which is most of the cost of patching a view of
+  -- any size.
+  --
+  -- 'Nothing', which is what this starts as, draws every cell on
+  -- screen again on every patch. That is what a 'renderCell' which
+  -- reads something other than its item needs, because then two equal
+  -- items do not mean two equal rows.
   , selectionMode :: SelectionMode
   -- ^ Whether a row can be selected at all. A spreadsheet, where what
   -- is selected is a cell rather than a row, asks for
@@ -153,6 +165,7 @@ defaultColumnViewParams theColumns = ColumnViewParams
   , scrollTo      = Nothing
   , onSelected    = Nothing
   , onActivated   = Nothing
+  , rowUnchanged  = Nothing
   , selectionMode = SelectOne
   }
 
@@ -219,6 +232,7 @@ instance Patchable (ColumnView item) where
       (handlers (columns params))
     writeIORef (viewOnSelected base)  (onSelected params)
     writeIORef (viewOnActivated base) (onActivated params)
+    writeIORef (viewUnchanged base)   (rowUnchanged params)
 
     -- Set rather than passed to the constructor, which would take the
     -- model over and leave the value here disowned.
@@ -262,6 +276,7 @@ instance Patchable (ColumnView item) where
                 writeIORef (columnHandlers state) (handlers (columns newParams))
                 writeIORef (viewOnSelected base)  (onSelected newParams)
                 writeIORef (viewOnActivated base) (onActivated newParams)
+                writeIORef (viewUnchanged base)   (rowUnchanged newParams)
                 setItems base (rows newParams)
                 patchColumns view state (columns newParams)
                 -- The rows on screen still show what they showed

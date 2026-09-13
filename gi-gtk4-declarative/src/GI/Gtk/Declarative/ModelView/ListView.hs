@@ -85,6 +85,17 @@ data ListViewParams item event = ListViewParams
   -- ^ Emitted when the selected row changes, whoever changed it.
   , onActivated :: Maybe (Word -> event)
   -- ^ Emitted when a row is activated, by a double click or by Enter.
+  , rowUnchanged :: Maybe (item -> item -> Bool)
+  -- ^ Whether a row that is on screen can be left as it is, given the
+  -- item it was drawn from and the item it would be drawn from now.
+  -- @Just (==)@ is the usual answer, and the one to give: a patch then
+  -- draws the rows whose items changed rather than every row on
+  -- screen, which is most of the cost of patching a view of any size.
+  --
+  -- 'Nothing', which is what this starts as, draws every row on screen
+  -- again on every patch. That is what a 'renderRow' which reads
+  -- something other than its item needs, because then two equal items
+  -- do not mean two equal rows.
   , selectionMode :: SelectionMode
   -- ^ Whether a row can be selected at all. Under 'SelectNothing',
   -- 'selected' and 'onSelected' do nothing. Changing this between
@@ -102,6 +113,7 @@ defaultListViewParams render = ListViewParams
   , scrollTo      = Nothing
   , onSelected    = Nothing
   , onActivated   = Nothing
+  , rowUnchanged  = Nothing
   , selectionMode = SelectOne
   }
 
@@ -152,6 +164,7 @@ instance Patchable (ListView item) where
                           (HashMap.singleton theColumn (renderRow params))
     writeIORef (viewOnSelected state)  (onSelected params)
     writeIORef (viewOnActivated state) (onActivated params)
+    writeIORef (viewUnchanged state)   (rowUnchanged params)
 
     factory <- Gtk.signalListItemFactoryNew
     connectFactory state factory
@@ -196,6 +209,7 @@ instance Patchable (ListView item) where
                            (HashMap.singleton theColumn (renderRow newParams))
                 writeIORef (viewOnSelected state)  (onSelected newParams)
                 writeIORef (viewOnActivated state) (onActivated newParams)
+                writeIORef (viewUnchanged state)   (rowUnchanged newParams)
                 setItems state (rows newParams)
                 -- The rows on screen show the items they showed before
                 -- until they are told otherwise: the model has not

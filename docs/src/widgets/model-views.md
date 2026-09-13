@@ -63,6 +63,35 @@ is not dragged back on the next event.
   }
 ```
 
+## Drawing a row again
+
+A patch draws every row on screen again, because the model has not
+changed and GTK has no reason to bind anything. A view of six hundred
+cells usually has two of them to change, and the other five hundred and
+ninety-eight cost the same as the two.
+
+So tell the view when a row has not changed:
+
+``` haskell
+(defaultColumnViewParams theColumns)
+  { rows = people
+  , rowUnchanged = Just (==)
+  }
+```
+
+The function is given the item a row was drawn from and the item it
+would be drawn from now. `True` says the row would come out the same,
+so the view leaves it alone: not rendered, not patched, and not
+subscribed to again. On a view of a hundred rows of ten columns, a patch
+that changes one row costs 1.7 ms with the comparison and 22 ms without
+it.
+
+This is a promise about the renderer: that it reads its item and nothing
+else. A `renderRow` that also reads, say, which cell is being edited
+gives two different rows for two equal items, and the view would show
+the older one. Leave `rowUnchanged` as `Nothing` for such a renderer, or
+put what it reads in the item.
+
 ## Selection
 
 A view selects one row at a time, which is what a list of things to
