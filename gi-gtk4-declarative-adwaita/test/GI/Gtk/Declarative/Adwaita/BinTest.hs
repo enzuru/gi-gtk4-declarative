@@ -10,6 +10,7 @@
 module GI.Gtk.Declarative.Adwaita.BinTest where
 
 import           Data.Text                      ( Text )
+import           Data.Typeable                  ( Typeable )
 import           Data.Vector                    ( Vector )
 import qualified GI.Adw                        as Adw
 import qualified GI.Gtk                        as Gtk
@@ -17,6 +18,7 @@ import           Hedgehog                hiding ( label )
 
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.Adwaita.Bin ( )
+import           GI.Gtk.Declarative.Bin         ( IsBin(..) )
 import           GI.Gtk.Declarative.Adwaita.Slots
 import           GI.Gtk.Declarative.Adwaita.TestUtils
 import           GI.Gtk.Declarative.State
@@ -45,6 +47,62 @@ render (first : rest) f = do
   destroy view = do
     window <- Gtk.castTo Gtk.Window view
     mapM_ Gtk.windowDestroy window
+
+-- * Every widget with an instance
+--
+-- An instance is two lines naming a setter and a getter for one
+-- widget, and two lines are where a wrong name hides: the content of
+-- an AdwApplicationWindow is the mistake this package exists to stop
+-- somebody making. So every widget with an instance is given a child
+-- and asked for it again, through the instance itself.
+
+-- | One widget that holds a child: what to call it, and what it
+-- answers with when it is asked for its child.
+data BinCase = BinCase
+  { caseName :: Text
+  , caseRun  :: IO (Maybe Text)
+  }
+
+binCase
+  :: (Typeable widget, IsBin widget, Gtk.IsWidget widget)
+  => Text
+  -> (Gtk.ManagedPtr widget -> widget)
+  -> BinCase
+binCase name ctor = BinCase name $ do
+  (parent, found) <- runUI $ do
+    let markup = bin ctor [] (label inside) :: Widget ()
+    state <- create markup
+    built <- someStateWidget state
+    typed <- Gtk.unsafeCastTo ctor built
+    (,) built <$> getBinChild typed
+  answer <- runUI (traverse labelOf found)
+  runUI (takeDown parent)
+  pure answer
+
+takeDown :: Gtk.Widget -> IO ()
+takeDown widget' = do
+  window <- Gtk.castTo Gtk.Window widget'
+  mapM_ Gtk.windowDestroy window
+
+inside :: Text
+inside = "inside"
+
+cases :: [BinCase]
+cases =
+  [ binCase "ApplicationWindow" Adw.ApplicationWindow
+  , binCase "Window"            Adw.Window
+  , binCase "ToastOverlay"      Adw.ToastOverlay
+  , binCase "Bin"               Adw.Bin
+  , binCase "StatusPage"        Adw.StatusPage
+  , binCase "Clamp"             Adw.Clamp
+  , binCase "Dialog"            Adw.Dialog
+  , binCase "ToolbarView"       Adw.ToolbarView
+  ]
+
+prop_every_bin_holds_the_child_it_was_given = withTests 1 . property $ do
+  answers <- evalIO (traverse run cases)
+  answers === map (\theCase -> (caseName theCase, Just inside)) cases
+  where run theCase = (,) (caseName theCase) <$> caseRun theCase
 
 -- * The single-child widgets
 

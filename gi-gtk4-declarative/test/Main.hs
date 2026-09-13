@@ -10,6 +10,7 @@ import           System.IO
 
 import qualified GI.Gtk.Declarative.AfterCreatedTest
                                                as AfterCreatedTest
+import qualified GI.Gtk.Declarative.BinTest    as BinTest
 import qualified GI.Gtk.Declarative.ContainerTest
                                                as ContainerTest
 import qualified GI.Gtk.Declarative.CustomWidgetTest
@@ -43,6 +44,7 @@ main = do
       sequence
         [ CustomWidget.tests
         , PatchTest.tests
+        , BinTest.tests
         , ContainerTest.tests
         , MenuModelTest.tests
         , EventControllerTest.tests

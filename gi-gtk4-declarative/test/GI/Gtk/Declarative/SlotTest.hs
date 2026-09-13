@@ -131,5 +131,73 @@ prop_a_slot_widget_emits_events = withTests 1 . property $ do
 
 -- * Test collection
 
+-- * The slots this module names
+--
+-- Each of these is one line delegating to a gi-gtk setter, and one
+-- line is where a wrong name hides, so each is rendered and read back
+-- through the getter that goes with it.
+
+-- | The label a frame shows in place of its text label.
+prop_a_frame_takes_a_label_widget = withTests 1 . property $ do
+  found <- evalIO $ do
+    let markup =
+          bin Gtk.Frame
+              [frameLabel (widget Gtk.Label [#label := ("the label" :: Text)])]
+              (widget Gtk.Label [#label := ("body" :: Text)]) :: Widget Event
+    state <- runUI (create markup)
+    runUI $ do
+      frame <- Gtk.unsafeCastTo Gtk.Frame =<< someStateWidget state
+      traverse labelOf =<< Gtk.frameGetLabelWidget frame
+  found === Just "the label"
+
+-- | The label an expander shows in place of its text label.
+prop_an_expander_takes_a_label_widget = withTests 1 . property $ do
+  found <- evalIO $ do
+    let markup =
+          bin Gtk.Expander
+              [expanderLabel (widget Gtk.Label [#label := ("the label" :: Text)])]
+              (widget Gtk.Label [#label := ("body" :: Text)]) :: Widget Event
+    state <- runUI (create markup)
+    runUI $ do
+      expander <- Gtk.unsafeCastTo Gtk.Expander =<< someStateWidget state
+      traverse labelOf =<< Gtk.expanderGetLabelWidget expander
+  found === Just "the label"
+
+-- | What a list box shows while it has no rows. GTK has no getter for
+-- it, so it is read back where it ends up, which is under the box.
+prop_a_list_box_takes_a_placeholder = withTests 1 . property $ do
+  labels <- evalIO $ do
+    let markup =
+          container
+              Gtk.ListBox
+              [ listBoxPlaceholder
+                  (widget Gtk.Label [#label := ("nothing here" :: Text)])
+              ]
+              [] :: Widget Event
+    state <- runUI (create markup)
+    runUI (descendantLabels =<< someStateWidget state)
+  labels === ["nothing here"]
+
+-- | The popover a menu button pops up. The slot casts the widget to a
+-- popover, which is the one slot here that asks something of what it
+-- is given.
+prop_a_menu_button_takes_a_popover = withTests 1 . property $ do
+  labels <- evalIO $ do
+    let markup =
+          widget
+              Gtk.MenuButton
+              [ menuButtonPopover
+                  (bin Gtk.Popover
+                       []
+                       (widget Gtk.Label [#label := ("in the popover" :: Text)])
+                  )
+              ] :: Widget Event
+    state <- runUI (create markup)
+    runUI $ do
+      button  <- Gtk.unsafeCastTo Gtk.MenuButton =<< someStateWidget state
+      popover <- Gtk.menuButtonGetPopover button
+      maybe (pure []) descendantLabels popover
+  labels === ["in the popover"]
+
 tests :: IO Bool
 tests = checkParallel $$(discover)

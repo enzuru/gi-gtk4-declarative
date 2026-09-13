@@ -374,5 +374,21 @@ prop_bin_child_is_replaced = once $ do
 
 -- * Test collection
 
+-- | A box takes a widget that is not a 'BoxChild', and wraps it in one
+-- with the usual properties. That is the whole of
+-- "GI.Gtk.Declarative.Widget.Conversions", and the shape most markup
+-- is written in.
+prop_a_box_takes_a_widget_that_is_not_a_box_child = withTests 1 . property $ do
+  labels <- evalIO $ renderAll
+    [ container
+        Gtk.Box
+        []
+        [ widget Gtk.Label [#label := ("one" :: Text)]
+        , widget Gtk.Label [#label := ("two" :: Text)]
+        ]
+    ]
+    childLabels
+  labels === ["one", "two"]
+
 tests :: IO Bool
 tests = checkParallel $$(discover)

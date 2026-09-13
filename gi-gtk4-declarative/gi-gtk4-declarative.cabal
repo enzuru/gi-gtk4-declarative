@@ -115,6 +115,7 @@ test-suite gi-gtk4-declarative-tests
   ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
   default-language:  Haskell2010
   other-modules:     GI.Gtk.Declarative.AfterCreatedTest
+                   , GI.Gtk.Declarative.BinTest
                    , GI.Gtk.Declarative.ContainerTest
                    , GI.Gtk.Declarative.CustomWidgetTest
                    , GI.Gtk.Declarative.EventControllerTest

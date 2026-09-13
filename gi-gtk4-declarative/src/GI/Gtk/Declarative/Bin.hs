@@ -89,6 +89,11 @@ instance IsBin Gtk.Revealer where
   setBinChild = Gtk.revealerSetChild
   getBinChild = Gtk.revealerGetChild
 
+-- | A scrolled window puts a child that does not scroll in a
+-- 'Gtk.Viewport' of its own, and 'getBinChild' then answers with that
+-- viewport rather than with the child that was set. GTK gives no way
+-- of telling a viewport it added from one somebody else did, so this
+-- is reported rather than undone.
 instance IsBin Gtk.ScrolledWindow where
   setBinChild = Gtk.scrolledWindowSetChild
   getBinChild = Gtk.scrolledWindowGetChild
