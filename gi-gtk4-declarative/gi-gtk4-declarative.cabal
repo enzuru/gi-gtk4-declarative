@@ -123,6 +123,8 @@ test-suite gi-gtk4-declarative-tests
                    , GI.Gtk.Declarative.ModelViewTest
                    , GI.Gtk.Declarative.PatchTest
                    , GI.Gtk.Declarative.ReferenceTest
+                   , GI.Gtk.Declarative.ReplaceTest
+                   , GI.Gtk.Declarative.AttributeTest
                    , GI.Gtk.Declarative.SlotTest
                    , GI.Gtk.Declarative.TestUtils
                    , GI.Gtk.Declarative.TestWidget
