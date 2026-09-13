@@ -24,6 +24,10 @@ import qualified GI.Gtk.Declarative.ModelViewTest
 import qualified GI.Gtk.Declarative.PatchTest  as PatchTest
 import qualified GI.Gtk.Declarative.ReferenceTest
                                                as ReferenceTest
+import qualified GI.Gtk.Declarative.ReplaceTest
+                                               as ReplaceTest
+import qualified GI.Gtk.Declarative.AttributeTest
+                                               as AttributeTest
 import qualified GI.Gtk.Declarative.SlotTest   as SlotTest
 
 
@@ -48,6 +52,8 @@ main = do
         , ContainerTest.tests
         , MenuModelTest.tests
         , EventControllerTest.tests
+        , ReplaceTest.tests
+        , AttributeTest.tests
         , SlotTest.tests
         , ReferenceTest.tests
         , ModelViewTest.tests
