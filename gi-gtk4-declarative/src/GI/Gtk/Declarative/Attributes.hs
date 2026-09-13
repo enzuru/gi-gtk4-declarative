@@ -229,10 +229,13 @@ onM signal = OnSignalImpure signal . toEventHandler
 --   ]
 -- @
 --
--- The controller is added when the widget is subscribed to, and
--- removed when that subscription is cancelled. It is found again for
--- removal by its name, so a name set on the controller beforehand does
--- not survive.
+-- The controller is added when the widget is first subscribed to, and
+-- stays on the widget until the attributes stop asking for it.
+-- Cancelling a subscription disconnects the handler behind it and
+-- leaves the controller where it is, so that a gesture keeps what it
+-- has counted across a patch. The library names the controller to find
+-- it again, so a name set on the controller beforehand does not
+-- survive.
 --
 -- "GI.Gtk.Declarative.EventController" has ready-made versions of this
 -- for the common controllers.

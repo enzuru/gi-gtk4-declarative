@@ -94,7 +94,7 @@ instance EventSource (SingleWidget widget) where
       cs)) cb
     = case (st, eqT @w1 @w2) of
       (StateTreeWidget top, Just Refl) -> do
-        handlers <- foldMap (addSignalHandler cb (stateTreeWidget top)) props
+        handlers <- addSignalHandlers cb (stateTreeWidget top) props
         (handlers <>) <$> subscribeSlots (stateTreeSlots top) props cb
       _ -> pure (fromCancellation (pure ()))
 

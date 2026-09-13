@@ -246,8 +246,17 @@ widget Label
   ]
 ```
 
-A controller is added to the widget when the widget is subscribed to,
-and removed when that subscription is cancelled, which is the same life
-any other event handler here has. The library finds the controller again
-by its name when it removes it, so a name you set on the controller
-yourself does not survive.
+A controller is added to the widget the first time the widget is
+subscribed to, and stays there until the attributes stop asking for it.
+Cancelling a subscription disconnects the handler behind the controller
+and leaves the controller where it is.
+
+That last part matters for gestures. A gesture counts what it has seen:
+a `GtkGestureClick` knows that the click it is reporting is the second
+of a double click. An application patches and subscribes again on every
+event, so a gesture that came off with its subscription would count from
+none after every event, and the second click of every double click would
+arrive as a first.
+
+The library names the controller to find it again, so a name you set on
+the controller yourself does not survive.

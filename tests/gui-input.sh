@@ -51,11 +51,16 @@ xdotool key a
 sleep 1
 xdotool mousemove --window "$window" 150 100 click 1
 sleep 1
+# A double click, which counts as a second press only if the gesture
+# lives through the patch the first press causes.
+xdotool click --repeat 2 --delay 100 1
+sleep 1
 
 kill $app 2>/dev/null
 wait $app 2>/dev/null
 
 grep -q '^KEY 97$' "$log" || fail "a key press did not reach the key controller"
-grep -q '^CLICK 150 100$' "$log" || fail "a click did not reach the click gesture"
+grep -q '^CLICK 1 150 100$' "$log" || fail "a click did not reach the click gesture"
+grep -q '^CLICK 2 150 100$' "$log" || fail "a double click arrived as two first clicks, so the gesture did not live through the patch between them"
 
-echo "ok   a key press and a click reached their event controllers"
+echo "ok   a key press, a click, and a double click reached their event controllers"

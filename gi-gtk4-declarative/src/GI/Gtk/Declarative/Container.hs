@@ -159,7 +159,7 @@ instance
   subscribe (Container ctor props children) (SomeState st) cb = case st of
     StateTreeContainer top childStates -> do
       parentWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
-      handlers' <- foldMap (addSignalHandler cb parentWidget) props
+      handlers' <- addSignalHandlers cb parentWidget props
       slots'    <- subscribeSlots (stateTreeSlots top) props cb
       subs <- flip foldMap (Vector.zip (unChildren children) childStates)
         $ \(c, childState) -> subscribe c childState cb

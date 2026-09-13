@@ -24,7 +24,7 @@ import           System.IO
 
 data Event
   = KeyPressed Word
-  | Clicked Int Int
+  | Clicked Int Int Int
   | Closed
 
 view' :: Text -> AppView Window Event
@@ -42,14 +42,24 @@ view' shown =
         Label
         [ #label := shown
         , onClickPressed
-          (\_nPress x y -> Clicked (round x) (round y))
+          (\nPress x y -> Clicked (fromIntegral nPress) (round x) (round y))
         ]
 
 update' :: Text -> Event -> Transition Text Event
 update' _ = \case
   KeyPressed keyval -> report ("KEY " <> Text.pack (show keyval))
-  Clicked x y ->
-    report ("CLICK " <> Text.pack (show x) <> " " <> Text.pack (show y))
+  -- The number of presses is what says a double click arrived as one:
+  -- the state changes on every click, so the gesture has to live
+  -- through the patch that follows the first one to count the second.
+  Clicked nPress x y ->
+    report
+      (  "CLICK "
+      <> Text.pack (show nPress)
+      <> " "
+      <> Text.pack (show x)
+      <> " "
+      <> Text.pack (show y)
+      )
   Closed -> Exit
  where
   report line = Transition line $ do

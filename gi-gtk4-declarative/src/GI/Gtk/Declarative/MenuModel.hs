@@ -314,7 +314,7 @@ instance EventSource (MenuWidget widget) where
         writeIORef (menuDispatch state)
                    (\i -> for_ (events Vector.!? i) cb)
         widget'  <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
-        handlers <- foldMap (addSignalHandler cb widget') attrs
+        handlers <- addSignalHandlers cb widget' attrs
         slots'   <- subscribeSlots (stateTreeSlots top) attrs cb
         pure
           (  handlers
