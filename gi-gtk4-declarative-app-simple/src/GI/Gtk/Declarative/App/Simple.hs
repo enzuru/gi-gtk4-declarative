@@ -132,7 +132,8 @@ runLoop = runLoopIn Nothing
 -- It loops until the application exits, so it cannot be called from
 -- the @activate@ handler directly. Use 'startInApplication', which
 -- starts it in a thread of its own and holds the application while it
--- gets going.
+-- gets going. Starting it any other way is the mistake described
+-- there.
 runInApplication
   :: (IsBin window, Gtk.IsWindow window, Gtk.IsApplication app)
   => app
@@ -148,7 +149,7 @@ runInApplication application app = do
 -- main :: IO ()
 -- main = do
 --   application <- Gtk.applicationNew (Just "com.example.App") []
---   _ <- Gtk.on application #activate (startInApplication application app)
+--   _ <- Gtk.on application #activate (void (startInApplication application app))
 --   void $ Gio.applicationRun application Nothing
 -- @
 --
@@ -156,15 +157,40 @@ runInApplication application app = do
 -- and the window here is built on the main loop a moment later, so this
 -- holds the application until the loop ends. Without that hold the
 -- application would be gone before its window arrived.
+--
+-- It answers with the loop it started, which a caller with something to
+-- take down when the window closes waits on:
+--
+-- @
+-- _ <- Gtk.on application #activate $ do
+--   loop <- startInApplication application app
+--   void . Async.async $ do
+--     _ <- Async.wait loop
+--     stopTheKernel
+-- @
+--
+-- Waiting on it in the @activate@ handler itself would stop the main
+-- loop before it started, so the waiting goes in a thread of its own.
+-- A caller with nothing to take down ignores the answer.
+--
+-- Starting the loop by hand, with 'runInApplication' in a thread of
+-- your own and no hold on the application, does not fail where you
+-- wrote it. The application returns from @activate@ holding no window
+-- and quits, and what you get is
+--
+-- > Gtk-CRITICAL **: New application windows must be added after the
+-- > GApplication::startup signal has been emitted
+--
+-- followed by a window that never appears.
 startInApplication
   :: (IsBin window, Gtk.IsWindow window, Gtk.IsApplication app)
   => app
   -> App window state event
-  -> IO ()
+  -> IO (Async.Async state)
 startInApplication application app = do
   application' <- Gtk.toApplication application
   Gio.applicationHold application'
-  void $ Async.async $ runInApplication application' app `finally` runUI
+  Async.async $ runInApplication application' app `finally` runUI
     (Gio.applicationRelease application')
 
 -- | The body of 'runLoop' and of 'runInApplication'. With an
