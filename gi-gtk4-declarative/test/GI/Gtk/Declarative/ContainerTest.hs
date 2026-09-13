@@ -227,6 +227,76 @@ prop_notebook_pages_and_tabs_are_patched = once $ do
     )
   pages === [("one", "first"), ("TWO", "second")]
 
+-- | Pages are added, replaced and taken away, each with the tab label
+-- that goes with it. A notebook holds the tab label of a page beside
+-- the page rather than inside it, so taking a page away is two
+-- removals rather than one.
+prop_notebook_pages_are_added_and_taken_away = once $ do
+  (grown, shrunk) <- evalIO $ do
+    grown' <- renderAll
+      [ notebook [] [page "one" (label "first")]
+      , notebook
+        []
+        [ page "one" (label "first")
+        , page "two" (label "second")
+        , page "three" (label "third")
+        ]
+      ]
+      notebookPages
+    shrunk' <- renderAll
+      [ notebook
+        []
+        [ page "one" (label "first")
+        , page "two" (label "second")
+        , page "three" (label "third")
+        ]
+      , notebook [] [page "one" (label "first")]
+      ]
+      notebookPages
+    pure (grown', shrunk')
+  grown === [("one", "first"), ("two", "second"), ("three", "third")]
+  shrunk === [("one", "first")]
+
+-- | A page whose widget is of another kind is built again and put back
+-- in its place, with its tab.
+prop_a_notebook_page_that_is_replaced_keeps_its_place = once $ do
+  pages <- evalIO $ renderAll
+    [ notebook
+      []
+      [page "one" (label "first"), page "two" (label "second")]
+    , notebook
+      []
+      [ page "one" (label "first")
+      , page "two" (widget Gtk.Button [#label := ("a button" :: Text)])
+      ]
+    ]
+    notebookPages
+  pages === [("one", "first"), ("two", "a button")]
+
+-- | A tab that is a widget of its own rather than a title.
+prop_a_notebook_takes_a_tab_of_its_own = once $ do
+  pages <- evalIO $ renderAll
+    [ notebook
+        []
+        [ pageWithTab (widget Gtk.Button [#label := ("the tab" :: Text)])
+                      (label "first")
+        ]
+    ]
+    notebookPages
+  pages === [("the tab", "first")]
+
+-- | The tab and the content of every page, in order.
+notebookPages :: Gtk.Widget -> IO (Vector.Vector (Text, Text))
+notebookPages w = do
+  Just notebook' <- Gtk.castTo Gtk.Notebook w
+  count          <- Gtk.notebookGetNPages notebook'
+  for (Vector.fromList [0 .. count - 1]) $ \i -> do
+    Just content <- Gtk.notebookGetNthPage notebook' i
+    tab          <- Gtk.notebookGetTabLabel notebook' content
+    tabText      <- maybe (pure "") labelOf tab
+    contentText  <- labelOf content
+    pure (tabText, contentText)
+
 -- * Stack
 
 prop_stack_children_are_named = once $ do
@@ -357,6 +427,104 @@ prop_overlay_has_a_main_child_and_overlays = once $ do
     )
   main' === Just "below"
   labels === ["below", "above"]
+
+-- | An overlay that is no longer named is taken off, and one that is
+-- new is put on top.
+prop_overlays_are_added_and_taken_away = once $ do
+  (grown, shrunk) <- evalIO $ do
+    grown' <- renderAll
+      [ container Gtk.Overlay [] (Vector.fromList [label "below"])
+      , container Gtk.Overlay
+                  []
+                  (Vector.fromList [label "below", label "above"])
+      ]
+      descendantLabels
+    shrunk' <- renderAll
+      [ container Gtk.Overlay
+                  []
+                  (Vector.fromList [label "below", label "above"])
+      , container Gtk.Overlay [] (Vector.fromList [label "below"])
+      ]
+      descendantLabels
+    pure (grown', shrunk')
+  grown === ["below", "above"]
+  shrunk === ["below"]
+
+-- | The widget in a slot of a centre box that cannot be patched is
+-- built again and put back in the same slot.
+prop_center_box_slots_are_replaced = once $ do
+  slots <- evalIO $ renderAll
+    [ centerBox [] (label "start") (label "center") (label "end")
+    , centerBox [] (button "start") (label "middle") (label "end")
+    ]
+    (\w -> do
+      Just box <- Gtk.castTo Gtk.CenterBox w
+      start    <- Gtk.centerBoxGetStartWidget box
+      center   <- Gtk.centerBoxGetCenterWidget box
+      end      <- Gtk.centerBoxGetEndWidget box
+      (,,)
+        <$> traverse labelOf start
+        <*> traverse labelOf center
+        <*> traverse labelOf end
+    )
+  slots === (Just "start", Just "middle", Just "end")
+
+-- | A widget an action bar no longer names is taken off it, whichever
+-- end it was at.
+prop_action_bar_children_are_taken_away = once $ do
+  (labels, center) <- evalIO $ renderAll
+    [ container
+      Gtk.ActionBar
+      []
+      [ actionBarStart (button "left")
+      , actionBarEnd (button "right")
+      , actionBarCenter (label "middle")
+      ]
+    , container Gtk.ActionBar [] [actionBarStart (button "left")]
+    ]
+    (\w -> do
+      Just bar <- Gtk.castTo Gtk.ActionBar w
+      center'  <- Gtk.actionBarGetCenterWidget bar
+      (,) <$> descendantLabels bar <*> traverse labelOf center'
+    )
+  labels === ["left"]
+  center === Nothing
+
+-- | A page of a stack that is no longer named is taken away, and one
+-- that is new is added under its own name.
+prop_stack_children_are_added_and_taken_away = once $ do
+  (grown, shrunk) <- evalIO $ do
+    let stackOf names = container
+          Gtk.Stack
+          []
+          (Vector.fromList
+            [ StackChild defaultStackChildProperties { name = n } (label n)
+            | n <- names
+            ]
+          )
+        namesOf w = do
+          Just stack <- Gtk.castTo Gtk.Stack w
+          children   <- childWidgets stack
+          for children $ \child -> do
+            page' <- Gtk.stackGetPage stack child
+            Gtk.stackPageGetName page'
+    grown'  <- renderAll [stackOf ["one"], stackOf ["one", "two"]] namesOf
+    shrunk' <- renderAll [stackOf ["one", "two"], stackOf ["one"]] namesOf
+    pure (grown', shrunk')
+  grown === [Just "one", Just "two"]
+  shrunk === [Just "one"]
+
+-- | A child a flow box no longer names is taken away.
+prop_flow_box_children_are_taken_away = once $ do
+  after <- evalIO $ renderAll
+    [flowBoxOf ["a", "b", "c"], flowBoxOf ["a"]]
+    nestedChildLabels
+  after === ["a"]
+ where
+  flowBoxOf ts = container
+    Gtk.FlowBox
+    []
+    (Vector.fromList [ bin Gtk.FlowBoxChild [] (label t) | t <- ts ])
 
 -- * Bins
 
