@@ -25,9 +25,17 @@
 --   ]
 -- @
 --
--- The controller is added when the widget is subscribed to, and
--- removed when that subscription is cancelled, so it follows the same
--- life as any other event handler in this library.
+-- The controller is added when the widget is first subscribed to, and
+-- stays on the widget for as long as the attribute asks for it. What
+-- the subscription owns is the handler behind it, which goes when the
+-- subscription is cancelled.
+--
+-- The controller outlives a patch on purpose. A gesture counts what it
+-- has seen: a 'Gtk.GestureClick' knows that the click it is reporting
+-- is the second of a double click. An application patches and
+-- subscribes again on every event, so a gesture that came off with its
+-- subscription would count from none after every event, and the second
+-- click of a double click would arrive as a first.
 --
 -- For a controller this module does not name, and for handlers that
 -- need the widget, use 'onController' and 'onControllerM' from

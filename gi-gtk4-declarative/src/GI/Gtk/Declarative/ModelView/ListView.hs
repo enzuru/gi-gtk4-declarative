@@ -228,7 +228,7 @@ instance EventSource (ListView item) where
         -- emitting without being built again.
         writeIORef (viewSink state) sink
         view     <- Gtk.unsafeCastTo Gtk.ListView (stateTreeWidget top)
-        handlers <- foldMap (addSignalHandler sink view) attributes
+        handlers <- addSignalHandlers sink view attributes
         slots    <- subscribeSlots (stateTreeSlots top) attributes sink
         pure
           (  handlers

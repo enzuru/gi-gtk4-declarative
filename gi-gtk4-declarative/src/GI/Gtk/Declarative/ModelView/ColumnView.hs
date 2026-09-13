@@ -293,7 +293,7 @@ instance EventSource (ColumnView item) where
             sink  = cb . toEvent
         writeIORef (viewSink (columnBase state)) sink
         view     <- Gtk.unsafeCastTo Gtk.ColumnView (stateTreeWidget top)
-        handlers' <- foldMap (addSignalHandler sink view) attributes
+        handlers' <- addSignalHandlers sink view attributes
         slots    <- subscribeSlots (stateTreeSlots top) attributes sink
         pure
           (  handlers'

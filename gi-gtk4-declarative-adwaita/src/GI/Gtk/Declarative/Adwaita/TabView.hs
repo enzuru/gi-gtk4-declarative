@@ -296,7 +296,7 @@ instance EventSource TabView where
             sink  = cb . toEvent
         writeIORef (stateSink state) sink
         view      <- Gtk.unsafeCastTo Adw.TabView (stateTreeWidget top)
-        handlers' <- foldMap (addSignalHandler sink view) attributes
+        handlers' <- addSignalHandlers sink view attributes
         slots     <- subscribeSlots (stateTreeSlots top) attributes sink
         records   <- readIORef (stateRecords state)
         children  <- fold <$> traverse (subscribeTab sink records) (tabs params)

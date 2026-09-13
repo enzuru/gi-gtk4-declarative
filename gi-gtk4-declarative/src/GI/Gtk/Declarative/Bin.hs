@@ -219,7 +219,7 @@ instance EventSource (Bin parent) where
   subscribe (Bin ctor props child) (SomeState st) cb = case st of
     StateTreeBin top childState -> do
       binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
-      handlers' <- foldMap (addSignalHandler cb binWidget) props
+      handlers' <- addSignalHandlers cb binWidget props
       slots'    <- subscribeSlots (stateTreeSlots top) props cb
       (<> (handlers' <> slots')) <$> subscribe child childState cb
     _ -> error "Cannot subscribe to Bin events with a non-bin state tree."
