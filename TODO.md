@@ -40,6 +40,14 @@ checkout is still in a directory of the old name.
 
 ## Done
 
+- A gesture that lives through a patch. A controller used to come off
+  the widget with its subscription, and an application cancels and
+  subscribes again on every event, so no handler could ever see the
+  second click of a double click. The controller now stays and the
+  handler behind it is what the subscription owns.
+- A selection mode on both model views. `SelectNothing` builds a
+  `GtkNoSelection`, which is what a spreadsheet wants: what is selected
+  there is a cell rather than a row.
 - The libadwaita widgets. A third package,
   `gi-gtk4-declarative-adwaita`, holding `IsBin` instances for the
   single-child widgets (`Adw.ApplicationWindow` and the rest), the two
