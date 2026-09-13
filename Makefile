@@ -54,7 +54,7 @@ XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 # under a bus of its own.
 DBUS := dbus-run-session --
 
-.PHONY: all build examples check check-lib check-adwaita check-app check-input bench docs clean
+.PHONY: all build examples check check-lib check-adwaita check-app check-input bench coverage docs clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
 # interface, so `make -j` multiplies the memory rather than dividing the
@@ -139,6 +139,63 @@ $(BUILD)/input-test: $(SOURCES) $(TEST)/InputApp.hs
 	@mkdir -p $(BUILD)
 	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded -main-is InputApp.main \
 	  -outputdir $(BUILD)/input-test-objects -o $@ $(TEST)/InputApp.hs $(GHC_RTS)
+
+# What the test suites reach, measured with GHC's own coverage.
+#
+# Three programs, so three reports: hpc adds up the runs of one program
+# and not the runs of three, because each call to GHC writes its own
+# module hashes. The library's own suite is the number that says most;
+# the other two say what their packages reach.
+#
+# The .tix file lands in the working directory of the program that
+# wrote it, which is why the runs happen inside the coverage directory.
+#
+# Not part of `make check`: it builds everything a second time.
+COVERAGE := $(BUILD)/coverage
+
+# The test modules, which are not what is being measured.
+NOT_MEASURED := $(shell find $(TEST) $(ADWTEST) $(APPTEST) -name '*.hs' \
+  | sed -e 's|.*/test/||' -e 's|/|.|g' -e 's|\.hs$$||' -e 's|^|--exclude=|')
+
+coverage:
+	@mkdir -p $(COVERAGE)
+	ghc -fhpc -hpcdir $(COVERAGE)/lib-mix -i$(LIB) -i$(TEST) \
+	  $(WARNINGS) $(PACKAGES) -threaded \
+	  -outputdir $(COVERAGE)/lib-objects -o $(COVERAGE)/lib-tests \
+	  $(TEST)/Main.hs $(GHC_RTS)
+	ghc -fhpc -hpcdir $(COVERAGE)/adwaita-mix -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) \
+	  $(WARNINGS) $(PACKAGES) -threaded \
+	  -outputdir $(COVERAGE)/adwaita-objects -o $(COVERAGE)/adwaita-tests \
+	  $(ADWTEST)/Main.hs $(GHC_RTS)
+	ghc -fhpc -hpcdir $(COVERAGE)/app-mix -i$(LIB) -i$(APP) -i$(APPTEST) \
+	  $(WARNINGS) $(PACKAGES) -threaded \
+	  -outputdir $(COVERAGE)/app-objects -o $(COVERAGE)/app-tests \
+	  $(APPTEST)/Main.hs $(GHC_RTS)
+	cd $(COVERAGE) && $(XVFB) ./lib-tests > lib-run.log 2>&1
+	cd $(COVERAGE) && $(XVFB) ./adwaita-tests > adwaita-run.log 2>&1
+	cd $(COVERAGE) && GTK_A11Y=none $(XVFB) $(DBUS) ./app-tests > app-run.log 2>&1
+	@echo
+	@echo "== gi-gtk4-declarative, from its own suite"
+	@hpc report $(COVERAGE)/lib-tests.tix --hpcdir=$(COVERAGE)/lib-mix \
+	  --srcdir=. --exclude=Main $(NOT_MEASURED)
+	@echo
+	@echo "== gi-gtk4-declarative-adwaita, from its own suite"
+	@hpc report $(COVERAGE)/adwaita-tests.tix --hpcdir=$(COVERAGE)/adwaita-mix \
+	  --srcdir=. --per-module --exclude=Main $(NOT_MEASURED) \
+	  | grep -A1 'module GI.Gtk.Declarative.Adwaita' | grep -v '^--$$' \
+	  | paste - - | sed 's/-----//g'
+	@echo
+	@echo "== GI.Gtk.Declarative.App.Simple, from its own suite"
+	@hpc report $(COVERAGE)/app-tests.tix --hpcdir=$(COVERAGE)/app-mix \
+	  --srcdir=. --per-module --exclude=Main $(NOT_MEASURED) \
+	  | grep -A1 'module GI.Gtk.Declarative.App.Simple' | grep -v '^--$$' \
+	  | paste - - | sed 's/-----//g'
+	@echo
+	@echo "Per module, for the library itself:"
+	@hpc report $(COVERAGE)/lib-tests.tix --hpcdir=$(COVERAGE)/lib-mix \
+	  --srcdir=. --per-module --exclude=Main $(NOT_MEASURED) \
+	  | grep -B1 'expressions used' | grep -v '^--$$' | paste - - \
+	  | sed 's/-----//g' | sort -t'(' -k2 -n
 
 # How long patching takes. Not part of `make check`: it measures rather
 # than checks, and it takes minutes rather than seconds.
