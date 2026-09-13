@@ -351,3 +351,105 @@ Test. A property that sends two presses with a patch between them and
 asserts that the handler saw a second press, not two firsts.
 `EventControllerTest` already drives real presses, and
 `prop_controllers_do_not_pile_up` is the test this one sits beside.
+
+## Four more, from the grid in a real window
+
+The grid is Cellar's whole screen: 100 rows of 27 columns, of which about
+600 cells are realized at a time. Patching it is slower than the
+imperative code it replaced by two orders of magnitude, and items 10 and
+11 are where the time goes. Items 12 and 13 are what the rest of the
+window needs.
+
+The numbers are CPU time for one patch of Cellar's grid, measured with
+`getCPUTime` around the call to `patch`, under Xvfb on this machine:
+
+- An ordinary patch, one cell changed: **34 ms**.
+- A patch that rebuilds the columns, which is a sheet opening or a
+  column being inserted: **230 ms to 550 ms**.
+- The same imperative code before the port: about **1 ms**, because a
+  bind was a map lookup and a call to `gtk_label_set_label`.
+
+At 34 ms a keystroke costs two frames, and the loop cannot go quiet
+between the 16 ms ticks of Cellar's kernel pump. That is not a
+theoretical complaint: it broke Cellar's window test suite, which turned
+the loop over until nothing was pending and so never returned.
+
+### 10. A controller is looked up by walking the widget
+
+Item 9 keeps a controller across a patch, which is right, but it finds
+the controller again by calling `gtk_widget_observe_controllers` and
+walking the list, comparing names. That happens once per controller, per
+widget, per patch.
+
+Cellar's cells have one controller each. Taking that controller out of
+the markup and adding it by hand cut the heavy patch from 450 ms to
+230 ms, so this walk is about half the cost of a patch of a grid.
+
+What to do. Keep the controller where it can be found in constant time.
+`g_object_set_data` on the widget, under the same name the library
+already generates, answers in one lookup and needs no list walk. Make
+sure that a controller added by somebody else is still left alone.
+
+Test. The existing controller properties cover the behavior. Add a
+benchmark case in `bench/Benchmark.hs` that patches a container of a few
+hundred widgets, each with a controller, so that the cost of this shows
+up as a number rather than as somebody's grid feeling slow.
+
+### 11. Every realized row is re-rendered on every patch
+
+`rebindRows` renders and patches every realized row on every patch of
+the view, and cancels and re-subscribes each one while it is there. A
+grid patch that moves the selection from one cell to the next therefore
+renders 600 cells to change 2.
+
+What to do, in rough order of how much it buys:
+
+- Let the caller say when a row has not changed. A function on the
+  parameters, such as `rowVersion :: item -> Int` or an `Eq` constraint
+  on `item`, lets `rebindRows` skip a row whose item is the same value
+  it drew last time. Cellar's rows are plain data, so this is the whole
+  problem solved for the common case.
+- Do not cancel and re-subscribe a row that was not re-rendered.
+- Build the collected attributes once per row rather than once per
+  patch, since `collectAttributes` allocates a hash map for every cell.
+
+Test. `bench/Benchmark.hs`, with a column view of a few hundred rows,
+patched with one item changed and then with all of them changed. The two
+should not cost the same, and today they do.
+
+Two things were tried on Cellar's side first, and neither is worth
+doing, which is the reason this item is the library's. Taking the three
+attributes that never change out of each cell's markup and setting them
+once at creation left the numbers where they were: 45 ms against 36 ms
+for an ordinary patch, and 381 to 537 ms against 376 to 481 ms for a
+heavy one, which is noise in both directions. Skipping the patch when
+the model has not changed skipped nothing at all in that run, because
+everything that asked for a patch really had changed something. So the
+cost is not in the number of attributes a cell carries. It is in doing
+any of this per realized row, per patch.
+
+### 12. An Adwaita header bar as a container
+
+Cellar's header bar is an `AdwHeaderBar` with a title widget and buttons
+packed at the start and the end. The core package has that for
+`Gtk.HeaderBar`, in `Container/HeaderBar.hs`, and the Adwaita package has
+no equivalent, so the header bar is the one part of Cellar's window that
+cannot move across yet.
+
+What to do. `GI.Gtk.Declarative.Adwaita.HeaderBar`, an `IsContainer`
+instance in the shape of the GTK one, over `adw_header_bar_pack_start`
+and `adw_header_bar_pack_end`, plus a `titleWidget` slot for
+`adw_header_bar_set_title_widget`.
+
+### 13. A toolbar view with more than one bar per end
+
+My own specification for item 7a said one top bar and one bottom bar,
+"until something needs it". Cellar needs three top bars: the header bar,
+the tab bar, and the cell bar. Cellar adds its own to the Blueprint one
+by hand at the moment, which is fine for a window that is half declared
+in XML and no good for one that is not.
+
+What to do. Give `Adw.ToolbarView` an `IsContainer` instance whose child
+type says which end a bar belongs to, in the shape of
+`Container/ActionBar.hs`, which already has start, centre, and end
+children. Keep the content child as `IsBin`.

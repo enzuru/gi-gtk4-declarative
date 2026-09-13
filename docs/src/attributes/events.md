@@ -258,5 +258,11 @@ event, so a gesture that came off with its subscription would count from
 none after every event, and the second click of every double click would
 arrive as a first.
 
-The library names the controller to find it again, so a name you set on
-the controller yourself does not survive.
+The library finds a controller again by its slot, which is its place
+among the controllers in a widget's attribute list. It writes that down
+on the widget with `g_object_set_data`, so finding one costs a lookup
+rather than a walk of everything on the widget. It also gives the
+controller a name, which is what you read in an inspector, so a name you
+set on the controller yourself does not survive. Taking a controller
+this library added off a widget by hand is not supported; the slot would
+be left pointing at nothing.

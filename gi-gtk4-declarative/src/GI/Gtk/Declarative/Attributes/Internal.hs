@@ -22,7 +22,6 @@ module GI.Gtk.Declarative.Attributes.Internal
 where
 
 import           Control.Monad                  ( foldM
-                                                , forM
                                                 , void
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
@@ -32,9 +31,12 @@ import           Data.Coerce                    ( coerce )
 import           Data.Foldable                  ( fold
                                                 , for_
                                                 )
-import           Data.GI.Base                   ( glibType )
-import           Data.List                      ( find )
-import           Data.Maybe                     ( catMaybes )
+import           Data.GI.Base                   ( GType(..)
+                                                , glibType
+                                                , gtypeToCGType
+                                                , newObject
+                                                , withManagedPtr
+                                                )
 import           Data.HashMap.Strict            ( HashMap )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Text                      ( Text )
@@ -42,10 +44,14 @@ import qualified Data.Text                     as Text
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
 import qualified Data.GI.Base.Signals          as Signals
-import           GHC.Ptr                        ( nullPtr )
+import           Foreign.Ptr                    ( Ptr
+                                                , castPtr
+                                                , nullPtr
+                                                , ptrToWordPtr
+                                                , wordPtrToPtr
+                                                )
 import qualified GI.GLib                       as GLib
 import qualified GI.GObject                    as GI
-import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 
 import           GI.Gtk.Declarative.Attributes
@@ -71,29 +77,29 @@ addSignalHandlers
   -> Vector (Attribute widget event)
   -> m Subscription
 addSignalHandlers onEvent widget' attributes = liftIO $ do
-  w                    <- Gtk.toWidget widget'
-  (subscriptions, kept) <- foldM step (mempty, []) (Vector.toList attributes)
-  pruneControllers w kept
+  w                     <- Gtk.toWidget widget'
+  (subscriptions, slots) <- foldM step (mempty, 0) (Vector.toList attributes)
+  pruneControllers w slots
   pure subscriptions
  where
-  step (subscriptions, kept) = \case
+  step (subscriptions, slots) = \case
     OnControllerPure newController signal handler -> do
-      (subscription, name) <- addController widget'
-                                            (length kept)
-                                            newController
-                                            signal
-                                            (toGtkCallback handler widget' onEvent)
-      pure (subscriptions <> subscription, kept <> [name])
+      subscription <- addController widget'
+                                    slots
+                                    newController
+                                    signal
+                                    (toGtkCallback handler widget' onEvent)
+      pure (subscriptions <> subscription, slots + 1)
     OnControllerImpure newController signal handler -> do
-      (subscription, name) <- addController widget'
-                                            (length kept)
-                                            newController
-                                            signal
-                                            (toGtkCallback handler widget' onEvent)
-      pure (subscriptions <> subscription, kept <> [name])
+      subscription <- addController widget'
+                                    slots
+                                    newController
+                                    signal
+                                    (toGtkCallback handler widget' onEvent)
+      pure (subscriptions <> subscription, slots + 1)
     attribute -> do
       subscription <- addSignalHandler onEvent widget' attribute
-      pure (subscriptions <> subscription, kept)
+      pure (subscriptions <> subscription, slots)
 
 addSignalHandler
   :: (Gtk.IsWidget widget, MonadIO m)
@@ -124,10 +130,10 @@ addSignalHandler onEvent widget' = \case
 -- behind the controller, which is connected here and disconnected when
 -- it is cancelled.
 --
--- The name is what ties one render to the next. It says which slot of
--- the attribute list the controller belongs to and what type it has,
--- so a controller is reused only where the same kind of controller is
--- asked for again.
+-- Which controller is which is its slot: its place among the
+-- controllers in the attribute list. A slot holds one kind of
+-- controller, so a slot that is asked for a controller of another type
+-- is emptied and filled again.
 addController
   :: forall widget controller info m
    . ( Gtk.IsWidget widget
@@ -140,85 +146,125 @@ addController
   -> IO controller
   -> Gtk.SignalProxy controller info
   -> Signals.HaskellCallbackType info
-  -> m (Subscription, Text)
-addController widget' index newController signal callback = liftIO $ do
-  w     <- Gtk.toWidget widget'
-  name  <- controllerName @controller index
-  found <- findController w name
-  controller <- case found of
-    Just existing -> pure (asController existing)
-    Nothing       -> do
-      fresh <- newController
-      Gtk.eventControllerSetName fresh (Just name)
-      Gtk.widgetAddController widget' fresh
-      -- The widget took the value over, and reading it again is what
-      -- the bindings warn about, so the controller is looked up under
-      -- the name it was given.
-      added <- findController w name
-      pure (maybe fresh asController added)
-  handlerId <- Gtk.on controller signal callback
-  -- The same object, at the type the disconnect asks for.
-  target    <- Gtk.toEventController controller
-  pure (fromCancellation (GI.signalHandlerDisconnect target handlerId), name)
+  -> m Subscription
+addController widget' slot' newController signal callback = liftIO $ do
+  w      <- Gtk.toWidget widget'
+  wanted <- glibType @controller
+  found  <- lookupController w slot'
+  kept   <- case found of
+    Just (existing, gtype) | gtype == wanted -> pure existing
+    Just (existing, _) -> do
+      -- The slot holds a controller of another kind, which is this
+      -- attribute list asking for something else than the one before.
+      Gtk.widgetRemoveController w existing
+      forgetController w slot'
+      freshController widget' w slot' wanted newController
+    Nothing -> freshController widget' w slot' wanted newController
+  handlerId <- Gtk.on (asController kept :: controller) signal callback
+  pure (fromCancellation (GI.signalHandlerDisconnect kept handlerId))
+
+-- | Make a controller, put it on the widget, and write down where it
+-- is.
+freshController
+  :: (Gtk.IsWidget widget, Gtk.IsEventController controller)
+  => widget
+  -> Gtk.Widget
+  -> Int
+  -> GType
+  -> IO controller
+  -> IO Gtk.EventController
+freshController widget' w slot' gtype newController = do
+  fresh <- newController
+  name  <- controllerName gtype slot'
+  Gtk.eventControllerSetName fresh (Just name)
+  -- Read while the value is still ours: the widget takes the
+  -- controller over, and reading it afterwards is what the bindings
+  -- warn about. The pointer stays good because the widget holds it.
+  address <- withManagedPtr fresh (pure . castPtr)
+  Gtk.widgetAddController widget' fresh
+  rememberController w slot' address gtype
+  ownedController address
 
 -- | A controller found on a widget, at the type the attribute asks
 -- for.
 --
--- Sound because of where the value comes from: it was found under a
--- name that says its GType, and this library is what put both the
--- controller and the name there.
-asController :: Gtk.IsEventController controller => Gtk.EventController -> controller
+-- Sound because of where the value comes from: the slot it was found
+-- in was asked for a controller of this type, and a slot holding one
+-- of another type is emptied above rather than read.
+asController
+  :: Gtk.IsEventController controller => Gtk.EventController -> controller
 asController = coerce
 
--- | What this library calls the controller in this slot: which slot of
--- the attribute list it is, and what type it has. A slot whose
--- controller type changes gets a name of its own, so the controller
--- that is there is replaced rather than reused.
-controllerName
-  :: forall controller . Gtk.IsEventController controller => Int -> IO Text
-controllerName index = do
-  gtype <- glibType @controller
-  name  <- GI.typeName gtype
+-- | What this library calls the controller in a slot, which is what a
+-- person looking at the widget in an inspector reads. The library
+-- itself finds a controller by its slot rather than by this name.
+controllerName :: GType -> Int -> IO Text
+controllerName gtype slot' = do
+  name <- GI.typeName gtype
   pure
-    (  controllerPrefix
-    <> Text.pack (show index)
-    <> "-"
-    <> maybe "unknown" id name
-    )
+    (controllerPrefix <> Text.pack (show slot') <> "-" <> maybe "" id name)
 
 controllerPrefix :: Text
 controllerPrefix = "gi-gtk4-declarative-controller-"
 
--- | The controller on this widget with this name, if it is there.
-findController :: Gtk.Widget -> Text -> IO (Maybe Gtk.EventController)
-findController widget' name = do
-  controllers <- namedControllers widget'
-  pure (fst <$> find ((== Just name) . snd) controllers)
+--
+-- Where a widget's controllers are written down
+--
+-- A controller has to be found again on every render, and walking the
+-- widget's controllers to find it costs a list of wrappers and a name
+-- for each one, every time. So the widget is told where its
+-- controllers are, under a key per slot, which answers in one lookup.
+--
+-- A controller somebody else put on the widget is in no slot, and is
+-- left alone. A controller this library put there and somebody else
+-- took off would leave the slot pointing at nothing, so taking one off
+-- by hand is not something to do.
+--
 
--- | Take off the controllers this library put on the widget that the
--- attributes no longer ask for. A controller somebody else added is
--- left alone, which is what the prefix is for.
-pruneControllers :: Gtk.Widget -> [Text] -> IO ()
-pruneControllers widget' kept = do
-  controllers <- namedControllers widget'
-  for_ controllers $ \(controller, name) -> case name of
-    Just this | controllerPrefix `Text.isPrefixOf` this, this `notElem` kept ->
-      Gtk.widgetRemoveController widget' controller
-    _ -> pure ()
+slotKey :: Int -> Text
+slotKey slot' = controllerPrefix <> Text.pack (show slot')
 
--- | Every controller on the widget, with the name it goes under.
-namedControllers :: Gtk.Widget -> IO [(Gtk.EventController, Maybe Text)]
-namedControllers widget' = do
-  controllers <- Gtk.widgetObserveControllers widget'
-  count       <- Gio.listModelGetNItems controllers
-  items       <- if count == 0
-    then pure []
-    else forM [0 .. count - 1] (Gio.listModelGetItem controllers)
-  traverse named (catMaybes items)
- where
-  named object = do
-    controller <- Gtk.unsafeCastTo Gtk.EventController object
-    (,) controller <$> Gtk.eventControllerGetName controller
+slotTypeKey :: Int -> Text
+slotTypeKey slot' = slotKey slot' <> "-type"
+
+-- | The controller in this slot, and the type it was made at.
+lookupController :: Gtk.Widget -> Int -> IO (Maybe (Gtk.EventController, GType))
+lookupController widget' slot' = do
+  address <- GI.objectGetData widget' (slotKey slot')
+  if address == nullPtr
+    then pure Nothing
+    else do
+      controller <- ownedController address
+      stored     <- GI.objectGetData widget' (slotTypeKey slot')
+      pure (Just (controller, GType (fromIntegral (ptrToWordPtr stored))))
+
+-- | A reference of our own to the controller at this address, which is
+-- alive for as long as the widget holds it.
+ownedController :: Ptr () -> IO Gtk.EventController
+ownedController address =
+  newObject Gtk.EventController (castPtr address :: Ptr Gtk.EventController)
+
+rememberController :: Gtk.Widget -> Int -> Ptr () -> GType -> IO ()
+rememberController widget' slot' address gtype = do
+  GI.objectSetData widget' (slotKey slot') address
+  GI.objectSetData widget'
+                   (slotTypeKey slot')
+                   (wordPtrToPtr (fromIntegral (gtypeToCGType gtype)))
+
+forgetController :: Gtk.Widget -> Int -> IO ()
+forgetController widget' slot' = do
+  GI.objectSetData widget' (slotKey slot') nullPtr
+  GI.objectSetData widget' (slotTypeKey slot') nullPtr
+
+-- | Take off the controllers in the slots this render did not fill,
+-- which are the ones the attributes no longer ask for.
+pruneControllers :: Gtk.Widget -> Int -> IO ()
+pruneControllers widget' from = do
+  found <- lookupController widget' from
+  for_ found $ \(controller, _) -> do
+    Gtk.widgetRemoveController widget' controller
+    forgetController widget' from
+    pruneControllers widget' (from + 1)
 
 -- | Run what the attributes asked to have run once the widget is
 -- built. Creation only: a patch leaves these alone.
