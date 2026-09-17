@@ -56,6 +56,8 @@ where
 
 import           Control.Monad                  ( when )
 import           Data.Foldable                  ( for_ )
+import           Data.List                      ( maximumBy )
+import           Data.Ord                       ( comparing )
 import qualified Data.HashMap.Strict           as HashMap
 import           Data.Int                       ( Int32 )
 import           Data.IORef
@@ -356,18 +358,8 @@ patchColumns view state wanted = do
       gone       = Vector.filter (not . isWanted) before
   for_ gone (Gtk.columnViewRemoveColumn view . recordColumn)
 
-  -- The order the kept columns are in, against the order asked for. If
-  -- they differ, they are taken out and put back, because GTK has no
-  -- way to move a column.
-  let keptKeys   = fmap recordKey kept
-      wantedKept = Vector.filter (`Vector.elem` keptKeys) wantedKeys
-  reordered <- if keptKeys == wantedKept
-    then pure kept
-    else do
-      for_ kept (Gtk.columnViewRemoveColumn view . recordColumn)
-      pure mempty
-
-  records <- Vector.imapM (place reordered) wanted
+  records <- Vector.imapM (place kept) wanted
+  reorderColumns view (fmap recordColumn records)
   writeIORef (columnRecords state) records
  where
   place inPlace index spec =
@@ -383,6 +375,58 @@ patchColumns view state wanted = do
         record <- ColumnRecord (columnKey spec) made dispatch <$> newIORef []
         applyHeaderMenu view state record spec
         pure record
+
+-- | Put the view's columns in the order asked for, moving the ones
+-- that have to move and no others.
+--
+-- GTK cannot move a column, so a column that moves is taken out and
+-- put back, and that costs it its header and the cells under it. A
+-- reorder is a permutation, though, and a permutation leaves most of
+-- its elements in the same order as each other: the longest run of
+-- columns that are already in the right order among themselves stays
+-- where it is, and the rest are moved around it. Dragging one column
+-- of twenty-seven therefore moves one.
+reorderColumns :: Gtk.ColumnView -> Vector Gtk.ColumnViewColumn -> IO ()
+reorderColumns view wanted = do
+  current <- currentColumns view
+  let places = Vector.mapMaybe (`Vector.elemIndex` wanted) current
+      stay   = longestRun places
+  Vector.imapM_ (move stay) wanted
+ where
+  move stay index made
+    | index `elem` stay = pure ()
+    | otherwise = do
+      Gtk.columnViewRemoveColumn view made
+      Gtk.columnViewInsertColumn view (fromIntegral index) made
+
+-- | The columns of a view, in the order the view has them.
+currentColumns :: Gtk.ColumnView -> IO (Vector Gtk.ColumnViewColumn)
+currentColumns view = do
+  model <- Gtk.columnViewGetColumns view
+  count <- Gio.listModelGetNItems model
+  items <- traverse (Gio.listModelGetItem model)
+                    (Vector.enumFromN 0 (fromIntegral count))
+  traverse (Gtk.unsafeCastTo Gtk.ColumnViewColumn)
+           (Vector.mapMaybe id items)
+
+-- | The longest run of values that is already in order, which is the
+-- most that can be left alone. A column not in it is out of order with
+-- respect to the run, and moving those is enough to put the whole
+-- thing in the order asked for.
+--
+-- The values are the columns of a view, so a plain quadratic search is
+-- cheaper than anything cleverer.
+longestRun :: Vector Int -> [Int]
+longestRun values = longest (Vector.foldl' step [] values)
+ where
+  -- The longest run ending at each value, in the order the values come
+  -- in. A run can be grown by any value larger than the one it ends
+  -- with.
+  step runs value =
+    let usable = [ run | run <- runs, last run < value ]
+    in  runs <> [longest usable <> [value]]
+  longest [] = []
+  longest runs = maximumBy (comparing length) runs
 
 -- | A column, with a factory that renders this column's cells, and the
 -- reference its header menu dispatches through.

@@ -735,6 +735,86 @@ prop_a_column_that_stays_keeps_its_widget = withTests 1 . property $ do
     pure (take 1 before == take 1 after && length after == 2)
   same === True
 
+-- | Dragging a column somewhere else moves that column and leaves the
+-- others where they are.
+--
+-- GTK cannot move a column, so a column that moves is taken out and
+-- put back, which costs it its header and the cells under it. Moving
+-- one column of four used to cost all four, and a header that is built
+-- again loses whatever the application put on it.
+prop_a_column_that_is_moved_is_the_only_one_rebuilt =
+  withTests 1 . property $ do
+    (titles, columnsKept, widgetsKept) <- evalIO $ do
+      let inOrder = pairRows
+            [("a", "1")]
+            [("one", "One"), ("two", "Two"), ("three", "Three"), ("four", "Four")]
+          dragged = pairRows
+            [("a", "1")]
+            [("two", "Two"), ("three", "Three"), ("four", "Four"), ("one", "One")]
+      (window, state, view) <- runUI $ do
+        state'  <- create inOrder
+        view'   <- someStateWidget state'
+        window' <- Gtk.new Gtk.Window
+                           [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+        Gtk.windowSetChild window' (Just view')
+        Gtk.windowPresent window'
+        pure (window', state', view')
+      settle
+      before     <- runUI (columnWidgets view)
+      labsBefore <- runUI (labelWidgets view)
+      _          <- runUI (patch' state inOrder dragged)
+      settle
+      after      <- runUI (columnWidgets view)
+      labsAfter  <- runUI (labelWidgets view)
+      titles'    <- runUI (columnTitles view)
+      runUI (Gtk.windowDestroy window)
+      -- The three that did not move are the same column objects, in
+      -- the same order, and the one that moved is the same object at
+      -- the end.
+      let stayed' = take 3 after == take 3 (drop 1 before)
+          moved'  = drop 3 after == take 1 before
+          -- A column that is taken out and put back loses its header
+          -- and the cells under it, so this is how many widgets the
+          -- move cost: the header and the one cell of the one column
+          -- that moved, out of four of each.
+          kept'   = length (filter (`elem` labsAfter) labsBefore)
+      pure (titles', stayed' && moved', kept')
+    titles === ["Two", "Three", "Four", "One"]
+    columnsKept === True
+    widgetsKept === 6
+
+-- | A column that is put in the middle of the others moves the ones it
+-- displaces and no more.
+prop_a_column_moved_into_the_middle_leaves_the_ends_alone =
+  withTests 1 . property $ do
+    (titles, ends) <- evalIO $ do
+      let inOrder = pairRows
+            [("a", "1")]
+            [("one", "One"), ("two", "Two"), ("three", "Three"), ("four", "Four")]
+          dragged = pairRows
+            [("a", "1")]
+            [("one", "One"), ("three", "Three"), ("two", "Two"), ("four", "Four")]
+      (window, state, view) <- runUI $ do
+        state'  <- create inOrder
+        view'   <- someStateWidget state'
+        window' <- Gtk.new Gtk.Window
+                           [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+        Gtk.windowSetChild window' (Just view')
+        Gtk.windowPresent window'
+        pure (window', state', view')
+      settle
+      before  <- runUI (columnWidgets view)
+      _       <- runUI (patch' state inOrder dragged)
+      settle
+      after   <- runUI (columnWidgets view)
+      titles' <- runUI (columnTitles view)
+      runUI (Gtk.windowDestroy window)
+      -- The first and the last are the objects they were.
+      let ends' = take 1 after == take 1 before && drop 3 after == drop 3 before
+      pure (titles', ends')
+    titles === ["One", "Three", "Two", "Four"]
+    ends === True
+
 prop_a_column_resize_emits = withTests 1 . property $ do
   events <- evalIO $ do
     received <- newTBQueueIO 10
@@ -823,6 +903,14 @@ headerMenuEvents (first : rest) = do
   runUI (cancel sub >> Gtk.windowDestroy window)
   events <- atomically (flushTBQueue received)
   pure (found, events)
+
+-- | Every label below a view, headers and cells alike, as the widgets
+-- they are.
+labelWidgets :: Gtk.Widget -> IO [Gtk.Label]
+labelWidgets view = do
+  widgets <- descendants view
+  labels  <- traverse (Gtk.castTo Gtk.Label) widgets
+  pure (mapMaybe id labels)
 
 -- | The titles of the view's columns, in order.
 columnTitles :: Gtk.Widget -> IO [Text]
