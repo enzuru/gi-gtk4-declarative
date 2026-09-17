@@ -45,9 +45,9 @@ view' (Message msg) =
 
 update' :: State -> Event -> Transition State Event
 update' _ = \case
-  Open   -> Transition (Message "Opening file...") (return Nothing)
-  Save   -> Transition (Message "Saving file...") (return Nothing)
-  Help   -> Transition (Message "There is no help.") (return Nothing)
+  Open   -> Transition (Message "Opening file...") none
+  Save   -> Transition (Message "Saving file...") none
+  Help   -> Transition (Message "There is no help.") none
   Closed -> Exit
 
 main :: IO ()

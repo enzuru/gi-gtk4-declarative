@@ -62,7 +62,7 @@ update' _ = \case
       )
   Closed -> Exit
  where
-  report line = Transition line $ do
+  report line = Transition line . perform $ do
     hPutStrLn stdout (Text.unpack line)
     hFlush stdout
     pure Nothing

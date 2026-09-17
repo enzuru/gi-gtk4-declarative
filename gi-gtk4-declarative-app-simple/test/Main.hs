@@ -8,7 +8,9 @@ import           Control.Concurrent            (newEmptyMVar, putMVar,
                                                 takeMVar, threadDelay)
 import qualified Control.Concurrent.Async      as Async
 import           Control.Monad                 (void)
+import           Data.Foldable                 (traverse_)
 import           Data.IORef
+import qualified Data.List                     as List
 import qualified GI.GLib                       as GLib
 import qualified GI.GLib.Constants             as GLib
 import qualified GI.Gio                        as Gio
@@ -20,7 +22,7 @@ import           System.Timeout
 import           Test.Hspec
 
 main :: IO ()
-main = hspec $
+main = hspec $ do
   describe "run" $ do
     it "processes events from inputs" $
       runApp app { inputs = [yield IncState >> yield Close]} >>= (`shouldBe` Just 1)
@@ -37,16 +39,16 @@ main = hspec $
       runApp app {inputs = [error "oh no"]} `shouldThrow` errorCall "oh no"
     describe "propagates exceptions from the Transition" $ do
       it "when the maybe is an exception" $
-        runApp app { update = \s _ -> Transition s (pure $ error "oh no")
+        runApp app { update = \s _ -> Transition s (perform (pure (error "oh no")))
                    , inputs = [yield ThrowError]
                    } `shouldThrow` errorCall "oh no"
       it "when the io is an exception" $
-        runApp app { update = \s _ -> Transition s (error "oh no")
+        runApp app { update = \s _ -> Transition s (perform (error "oh no"))
                    , inputs = [yield ThrowError]
                    } `shouldThrow` errorCall "oh no"
       it "when the newly generated event is an exception" $
         -- Note: forcing the event by pattern matching is important to raise the exception
-        runApp app { update = \s ThrowError -> Transition s (pure $ Just (error "oh no"))
+        runApp app { update = \s ThrowError -> Transition s (perform (pure (Just (error "oh no"))))
                    , inputs = [yield ThrowError]
                    } `shouldThrow` errorCall "oh no"
     -- An application of somebody else's, which is the shape a program
@@ -119,6 +121,50 @@ main = hspec $
       -- with, which is what says the replacement happened at all.
       (first == second) `shouldBe` False
       length leftOver `shouldBe` 0
+  -- What an update asks the loop to do beside changing the state.
+  describe "Cmd" $ do
+    it "runs every job of a batch" $ do
+      seen <- runJobs
+        (\_ -> says "one" <> says "two" <> says "three")
+        [yield Begin, stopAfter 400]
+      -- The jobs run at the same time as one another, so what comes
+      -- back is all of them in no particular order.
+      fmap List.sort seen `shouldBe` Just (List.sort ["one", "two", "three"])
+    it "takes the events of a stream, in the order they are yielded" $ do
+      seen <- runJobs
+        (\_ -> stream (traverse_ (yield . Saw) (["one", "two", "three"] :: [String])))
+        [yield Begin, stopAfter 400]
+      seen `shouldBe` Just ["one", "two", "three"]
+    it "does nothing, and holds nothing up, for a command of no jobs" $ do
+      seen <- runJobs (\_ -> none) [yield Begin, stopAfter 300]
+      seen `shouldBe` Just []
+    -- The rule this whole shape exists for: the answer that counts is
+    -- the last one asked for.
+    it "stops the job that was running under a name, and says nothing"
+      $ do
+          seen <- runJobs
+            (\case
+              Begin ->
+                keyed "answer" (saysAfter 500 "first")
+                  <> keyed "other" (saysAfter 100 "other")
+              _ -> keyed "answer" (saysAfter 100 "second")
+            )
+            [yield Begin >> waiting 200 >> yield Again, stopAfter 900]
+          fmap List.sort seen `shouldBe` Just ["other", "second"]
+    it "leaves a job with no name alone" $ do
+      seen <- runJobs
+        (\case
+          Begin -> saysAfter 400 "unnamed" <> keyed "answer" (saysAfter 400 "first")
+          _     -> keyed "answer" (saysAfter 50 "second")
+        )
+        [yield Begin >> waiting 100 >> yield Again, stopAfter 900]
+      fmap List.sort seen `shouldBe` Just ["second", "unnamed"]
+    it "propagates an exception from a job" $
+      runJobs (\_ -> perform (error "oh no")) [yield Begin, stopAfter 400]
+        `shouldThrow` errorCall "oh no"
+    it "propagates an exception from a stream" $
+      runJobs (\_ -> stream (error "oh no")) [yield Begin, stopAfter 400]
+        `shouldThrow` errorCall "oh no"
   where
     app = App
       { update = update'
@@ -147,6 +193,41 @@ main = hspec $
       yield Close
       liftIO (threadDelay 1000000)
       closeLoop
+    -- The jobs an update answers with, driven by the inputs given, and
+    -- what they sent back.
+    runJobs jobs ins =
+      fmap (fmap seen) . timeout 3000000 . run $ App
+        { view         = \_ -> bin Gtk.Window [] (widget Gtk.Label [])
+        , update       = jobsUpdate jobs
+        , inputs       = ins
+        , initialState = Jobs []
+        }
+    says text = perform (pure (Just (Saw text)))
+    saysAfter delay text =
+      perform (threadDelay (delay * 1000) >> pure (Just (Saw text)))
+    waiting delay = liftIO (threadDelay (delay * 1000))
+    stopAfter delay = waiting delay >> yield Stop
+
+-- | The state of the app that runs jobs: what they sent back.
+newtype JobsState = Jobs { seen :: [String] }
+
+data JobsEvent
+  = Begin
+  | Again
+  | Saw String
+  | Stop
+
+-- | An update that answers with the jobs under test, and writes down
+-- what they send back.
+jobsUpdate
+  :: (JobsEvent -> Cmd JobsEvent)
+  -> JobsState
+  -> JobsEvent
+  -> Transition JobsState JobsEvent
+jobsUpdate jobs state = \case
+  Saw text -> Transition state { seen = seen state <> [text] } none
+  Stop     -> Exit
+  event    -> Transition state (jobs event)
 
 type AppState = Int
 
@@ -164,6 +245,6 @@ replacingView _ = bin Gtk.Window [] (widget Gtk.Label [])
 
 update' :: AppState -> AppEvent -> Transition AppState AppEvent
 update' state = \case
-  IncState   -> Transition (state + 1) (pure Nothing)
+  IncState   -> Transition (state + 1) none
   ThrowError -> error "oh no"
   Close      -> Exit

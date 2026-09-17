@@ -69,8 +69,8 @@ view' (State msg) =
                                            }
 
 update' :: State -> Event -> Transition State Event
-update' _ Confirmed = Transition (State (Just "Confirmed.")) (pure Nothing)
-update' _ Cancelled = Transition (State (Just "Cancelled.")) (pure Nothing)
+update' _ Confirmed = Transition (State (Just "Confirmed.")) none
+update' _ Cancelled = Transition (State (Just "Cancelled.")) none
 update' _ Closed    = Exit
 
 main :: IO ()

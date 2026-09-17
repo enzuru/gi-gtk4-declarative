@@ -74,9 +74,9 @@ view' State {..} =
 
 update' :: State -> Event -> Transition State Event
 update' state = \case
-  KeyPressed key -> Transition state { lastKey = key } (pure Nothing)
-  Clicked x y    -> Transition state { lastClick = at x y } (pure Nothing)
-  Moved   x y    -> Transition state { pointerAt = at x y } (pure Nothing)
+  KeyPressed key -> Transition state { lastKey = key } none
+  Clicked x y    -> Transition state { lastClick = at x y } none
+  Moved   x y    -> Transition state { pointerAt = at x y } none
   Closed         -> Exit
 
 at :: Double -> Double -> Text

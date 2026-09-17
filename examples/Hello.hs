@@ -34,7 +34,7 @@ view' s =
         Greeting who -> widget Label [#label := who]
 
 update' :: State -> Event -> Transition State Event
-update' _ (Greet who) = Transition (Greeting who) (return Nothing)
+update' _ (Greet who) = Transition (Greeting who) none
 update' _ Closed      = Exit
 
 main :: IO ()

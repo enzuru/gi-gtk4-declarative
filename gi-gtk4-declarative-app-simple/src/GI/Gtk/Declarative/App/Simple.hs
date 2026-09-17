@@ -14,6 +14,12 @@ module GI.Gtk.Declarative.App.Simple
   ( App(..)
   , AppView
   , Transition(..)
+  , Cmd
+  , none
+  , perform
+  , emit
+  , stream
+  , keyed
   , run
   , runLoop
   , runInApplication
@@ -29,8 +35,11 @@ import           Control.Exception              ( SomeException,
                                                   finally,
                                                   throwIO)
 import           Control.Monad
-import           Data.Foldable                  ( for_ )
+import           Data.Foldable                  ( for_
+                                                , traverse_
+                                                )
 import           Data.IORef
+import           Data.Text                      ( Text )
 import           Data.Typeable
 import qualified GI.GLib                       as GLib
 import qualified GI.Gio                        as Gio
@@ -38,7 +47,8 @@ import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
-import           Pipes
+import           Pipes                   hiding ( yield )
+import qualified Pipes
 import qualified Pipes.Prelude                 as Pipes
 import           Pipes.Concurrent
 import           System.Exit
@@ -67,11 +77,73 @@ type AppView window event = Bin window event
 -- | The result of applying the 'update' function, deciding if and how to
 -- transition to the next state.
 data Transition state event =
-  -- Transition to the given state, and with an IO action that may return a
-  -- new event.
-  Transition state (IO (Maybe event))
+  -- | Transition to the given state, and run these jobs.
+  Transition state (Cmd event)
   -- | Exit the application.
   | Exit
+
+-- | What an update asks the loop to do, beside changing the state.
+--
+-- A command is a batch of jobs. Each runs in a thread of its own and
+-- sends its events back to the loop, and two commands are put together
+-- with '<>':
+--
+-- @
+-- update' state = \case
+--   Save     -> Transition state { saving = True } (perform (Nothing <$ writeFile' state))
+--   Typed t  -> Transition state { typed = t } (keyed "preview" (perform (preview t)))
+--   Reset    -> Transition initial (emit [Typed ""] <> perform (Nothing <$ clearFile))
+--   Ignore   -> Transition state none
+-- @
+--
+-- A job under a key stops the job that is running under that key, and
+-- stopping it that way is silent: no event, no exception, nothing the
+-- loop hears about. That is what a preview of a half-written
+-- expression wants, and a save that answers a slider being dragged.
+newtype Cmd event = Cmd [Job event]
+
+-- | One job of a command: what to run, and the key it runs under, if
+-- it has one.
+data Job event = Job
+  { jobKey :: Maybe Text
+  , jobRun :: Producer event IO ()
+  }
+
+instance Semigroup (Cmd event) where
+  Cmd one <> Cmd other = Cmd (one <> other)
+
+instance Monoid (Cmd event) where
+  mempty = Cmd []
+
+-- | A command with nothing to do, which is what an update that only
+-- changes the state answers with.
+none :: Cmd event
+none = mempty
+
+-- | Run an action, and take the event it answers with, if it answers
+-- with one. This is what a 'Transition' used to carry on its own.
+perform :: IO (Maybe event) -> Cmd event
+perform action =
+  Cmd [Job Nothing (lift action >>= maybe (pure ()) Pipes.yield)]
+
+-- | Send these events to the loop, in this order, without running
+-- anything first.
+emit :: [event] -> Cmd event
+emit events = Cmd [Job Nothing (traverse_ Pipes.yield events)]
+
+-- | Run a producer, and take every event it yields, for a job that
+-- answers more than once: a download reporting its progress, or a
+-- process being watched.
+stream :: Producer event IO () -> Cmd event
+stream producer = Cmd [Job Nothing producer]
+
+-- | Give every job in a command a name. Starting a job under a name
+-- stops the job that is running under it, silently, which is how a
+-- program keeps the last answer and no other.
+--
+-- A job with no name is never stopped by another job.
+keyed :: Text -> Cmd event -> Cmd event
+keyed key (Cmd jobs) = Cmd [ job { jobKey = Just key } | job <- jobs ]
 
 -- | An exception thrown by the 'run' function when the GLib main loop
 -- exits before event/state handling, which should never happen but can
@@ -205,6 +277,9 @@ runLoopIn application App {..} = do
   let firstMarkup = view initialState
 
   events                     <- newChan
+  -- The jobs of the commands an update has answered with, by the name
+  -- they run under.
+  jobs                       <- newIORef []
   (firstState, subscription) <- do
     firstState <- runUI (create firstMarkup)
     runUI (addWindow application firstState >> presentWindow firstState)
@@ -215,29 +290,39 @@ runLoopIn application App {..} = do
   -- at the end. The loop itself answers with the last model.
   showing <- newIORef firstState
 
-  let core = Async.withAsync (runProducers events inputs) $ \inputs' ->
-        Async.withAsync
-            (wrappedLoop showing firstState firstMarkup events subscription)
-          $ \loop' -> Async.waitEither inputs' loop' >>= \case
-              Left _      -> Async.wait loop'
-              Right state -> state <$ Async.uninterruptibleCancel inputs'
+  let core =
+        Async.withAsync (runProducers events inputs)
+          $ \inputs' ->
+              Async.withAsync
+                  (wrappedLoop showing
+                               firstState
+                               firstMarkup
+                               events
+                               jobs
+                               subscription
+                  )
+                $ \loop' -> Async.waitEither inputs' loop' >>= \case
+                    Left _      -> Async.wait loop'
+                    Right state -> state <$ Async.uninterruptibleCancel inputs'
+      -- Whatever ends the loop, the jobs it started end with it.
+      running = core `finally` stopEveryJob jobs
 
   case application of
-    Nothing -> core
-    Just _  -> core
+    Nothing -> running
+    Just _  -> running
       `finally` (runUI . destroyWindow =<< readIORef showing)
 
  where
-  wrappedLoop showing firstState firstMarkup events subscription =
-    loop showing firstState firstMarkup events subscription initialState
+  wrappedLoop showing firstState firstMarkup events jobs subscription =
+    loop showing firstState firstMarkup events jobs subscription initialState
       -- Catch exception of linked thread and reraise them without the
       -- async wrapping.
       `catch` (\(Async.ExceptionInLinkedThread _ e) -> throwIO e)
 
-  loop showing oldState oldMarkup events oldSubscription oldModel = do
+  loop showing oldState oldMarkup events jobs oldSubscription oldModel = do
     event <- readChan events
     case update oldModel event of
-      Transition newModel action -> do
+      Transition newModel cmd -> do
         let newMarkup = view newModel
 
         (newState, sub) <- case patch oldState oldMarkup newMarkup of
@@ -256,22 +341,50 @@ runLoopIn application App {..} = do
             return (newState, sub)
           Keep -> return (oldState, oldSubscription)
 
-        -- If the action returned by the update function produced an event, then
-        -- we write that to the channel.
-        -- This is done in a thread to avoid blocking the event loop.
-        a <- Async.async $
-          -- TODO: Use prioritized queue for events returned by 'update', to take
-          -- precendence over those from 'inputs'.
-          action >>= maybe (return ()) (writeChan events)
-
-        -- If any exception happen in the action, it will be reraised here and
-        -- catched in the thread. See the ExceptionInLinkedThread
-        -- catch.
-        Async.link a
+        -- The jobs of the command run in threads of their own, so that
+        -- none of them holds up the loop.
+        --
+        -- TODO: Use prioritized queue for events returned by 'update', to take
+        -- precendence over those from 'inputs'.
+        runCmd events jobs cmd
 
         writeIORef showing newState
-        loop showing newState newMarkup events sub newModel
+        loop showing newState newMarkup events jobs sub newModel
       Exit -> return oldModel
+
+-- | The jobs running under a name. There are as many of these as an
+-- application has names for its jobs, which is a handful, so a list of
+-- them is cheaper to keep than a map.
+type RunningJobs = IORef [(Text, Async.Async ())]
+
+-- | Start the jobs of a command.
+--
+-- A job under a name stops whatever was running under that name. The
+-- stopping is a cancellation, and 'Async.link' passes on everything a
+-- thread dies of except being cancelled, so the loop hears about an
+-- exception in a job and hears nothing about one being replaced.
+runCmd :: Chan event -> RunningJobs -> Cmd event -> IO ()
+runCmd events running (Cmd toRun) = for_ toRun $ \job -> do
+  for_ (jobKey job) (stopJob running)
+  started <- Async.async
+    (runEffect (jobRun job >-> Pipes.mapM_ (publishEvent events)))
+  Async.link started
+  for_ (jobKey job) $ \key -> modifyIORef' running ((key, started) :)
+
+-- | Stop the job running under this name, if there is one.
+stopJob :: RunningJobs -> Text -> IO ()
+stopJob running key = do
+  before <- readIORef running
+  writeIORef running (filter ((/= key) . fst) before)
+  for_ [ job | (running', job) <- before, running' == key ]
+       Async.uninterruptibleCancel
+
+-- | Stop every job, which is what the end of the loop does.
+stopEveryJob :: RunningJobs -> IO ()
+stopEveryJob running = do
+  before <- readIORef running
+  writeIORef running []
+  for_ before (Async.uninterruptibleCancel . snd)
 
 -- | Tell the application about the window, so that it does not quit
 -- while the window is up.
