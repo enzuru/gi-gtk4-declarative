@@ -81,8 +81,8 @@ view' State {..} =
 
 update' :: State -> Event -> Transition State Event
 update' state = \case
-  Chose row  -> Transition state { chosen = Just row } (pure Nothing)
-  Opened row -> Transition state (report row)
+  Chose row  -> Transition state { chosen = Just row } none
+  Opened row -> Transition state (perform (report row))
   Closed     -> Exit
  where
   report row = do

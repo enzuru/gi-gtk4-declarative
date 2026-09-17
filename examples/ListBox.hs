@@ -42,7 +42,7 @@ view' State {..} =
 
 update' :: State -> Event -> Transition State Event
 update' State {..} (Greet who) =
-  Transition State { greetings = greetings <> [who] } (pure Nothing)
+  Transition State { greetings = greetings <> [who] } none
 update' _ Closed = Exit
 
 main :: IO ()

@@ -53,8 +53,8 @@ incrDecrView State {..} =
     BoxChild defaultBoxChildProperties { expand = True, fill = True }
 
 update' :: State -> Event -> Transition State Event
-update' State {..} Incr   = Transition (State (count + 1)) (return Nothing)
-update' State {..} Decr   = Transition (State (count - 1)) (return Nothing)
+update' State {..} Incr   = Transition (State (count + 1)) none
+update' State {..} Decr   = Transition (State (count - 1)) none
 update' _          Closed = Exit
 
 main :: IO ()

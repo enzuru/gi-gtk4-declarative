@@ -40,7 +40,7 @@ view' ns =
           $ widget Button [#label := pack (show n), on #clicked IncrAll]
 
 update' :: State -> Event -> Transition State Event
-update' ns IncrAll = Transition (succ <$> ns) (return Nothing)
+update' ns IncrAll = Transition (succ <$> ns) none
 update' _  Closed  = Exit
 
 main :: IO ()

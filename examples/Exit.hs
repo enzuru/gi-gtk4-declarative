@@ -43,12 +43,13 @@ countDown = threadDelay oneSec $> Just CountDownExit
   oneSec = 1000000
 
 update' :: State -> Event -> Transition State Event
-update' Running       ExitApplication = Transition (ExitingIn 3) countDown
-update' Running       _               = Transition Running (pure Nothing)
+update' Running       ExitApplication =
+  Transition (ExitingIn 3) (perform countDown)
+update' Running       _               = Transition Running none
 update' (ExitingIn 1) CountDownExit   = Exit
 update' (ExitingIn sec) CountDownExit =
-  Transition (ExitingIn (pred sec)) countDown
-update' s@ExitingIn{} ExitApplication = Transition s (pure Nothing)
+  Transition (ExitingIn (pred sec)) (perform countDown)
+update' s@ExitingIn{} ExitApplication = Transition s none
 
 main :: IO ()
 main = void $ run App { view         = view'

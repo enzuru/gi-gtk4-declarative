@@ -88,11 +88,11 @@ chooseFile output = do
 
 update' :: State -> Event -> Transition State Event
 update' (Started _) (FileSelectionChanged p) =
-  Transition (Started p) (return Nothing)
+  Transition (Started p) none
 update' (Started (Just path)) ButtonClicked =
-  Transition (Done path) (return Nothing)
+  Transition (Done path) none
 update' _ Closed = Exit
-update' s _      = Transition s (return Nothing)
+update' s _      = Transition s none
 
 main :: IO ()
 main = do

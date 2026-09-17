@@ -86,6 +86,57 @@ and destroys it when the view is replaced by one of another type.
 [gi-gtk4-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
 [Pipes]: http://hackage.haskell.org/package/pipes
 
+## What an update asks for, beside the state
+
+An update answers with the next state and a `Cmd`: a batch of jobs for
+the loop to run. Each job runs in a thread of its own and sends its
+events back to the loop.
+
+``` haskell
+update' :: State -> Event -> Transition State Event
+update' state = \case
+  Ignore  -> Transition state none
+  Save    -> Transition state { saving = True } (perform (Nothing <$ save state))
+  Typed t -> Transition state { typed = t } (keyed "preview" (perform (preview t)))
+  Reset   -> Transition initial (emit [Typed ""] <> perform (Nothing <$ clear))
+```
+
+- `none` has nothing to do, for an update that only changes the state.
+- `perform` runs an action and takes the event it answers with, if it
+  answers with one.
+- `emit` sends events without running anything first.
+- `stream` takes every event a `Producer` yields, for a job that answers
+  more than once.
+- `keyed` names every job in the command it wraps.
+
+Two commands are put together with `<>`, and `none` is the empty one.
+
+A job started under a name stops the job that is running under that
+name, and stopping it that way is silent: no event, no exception,
+nothing the loop hears about. That is what an editor wants when it asks
+what a half-written expression comes to on every keystroke, and what a
+program wants when it writes a file in answer to a slider being dragged.
+A job with no name is never stopped by another job.
+
+An exception in a job takes the application down, the way an exception
+anywhere else in the loop does, and the loop stops every job it started
+when it ends.
+
+### Coming from the older shape
+
+A `Transition` used to carry one action, `IO (Maybe event)`. Wrap what
+you have in `perform`:
+
+``` haskell
+-- Before
+Transition state (pure Nothing)
+Transition state (Just <$> readTheFile)
+
+-- Now
+Transition state none
+Transition state (perform (Just <$> readTheFile))
+```
+
 ## Inside an application of your own
 
 A program that needs a `GtkApplication`, for its application id, its

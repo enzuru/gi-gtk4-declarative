@@ -47,8 +47,8 @@ view' si =
 
 update' :: State -> Event -> Transition State Event
 update' s (MoveTo i)
-  | i >= 0 && i < length colors = Transition i (return Nothing)
-  | otherwise                   = Transition s (return Nothing)
+  | i >= 0 && i < length colors = Transition i none
+  | otherwise                   = Transition s none
 update' _ Closed = Exit
 
 styles :: Text

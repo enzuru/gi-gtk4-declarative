@@ -45,7 +45,7 @@ view' State {..} =
         ]
 
 update' :: State -> Event -> Transition State Event
-update' State {..} Incr = Transition State { count = count + 1 } (pure Nothing)
+update' State {..} Incr = Transition State { count = count + 1 } none
 update' State {..} Closed = Exit
 
 main :: IO ()

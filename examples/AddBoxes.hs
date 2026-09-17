@@ -62,10 +62,10 @@ addBoxesView State {..} =
 update' :: State -> Event -> Transition State Event
 update' state@State {..} AddLeft = Transition
   state { lefts = lefts `Vector.snoc` next, next = succ next }
-  (return Nothing)
+  none
 update' state@State {..} AddRight = Transition
   state { rights = rights `Vector.snoc` next, next = succ next }
-  (return Nothing)
+  none
 update' _ Closed = Exit
 
 main :: IO ()

@@ -133,7 +133,7 @@ centered w = container
   ]
 
 update' :: State -> Event -> Transition State Event
-update' _ (NumberSet d) = Transition (State d) (return Nothing)
+update' _ (NumberSet d) = Transition (State d) none
 update' _ Closed        = Exit
 
 main :: IO ()
