@@ -83,4 +83,4 @@ main = do
     GLib.mainLoopQuit mainLoop
   GLib.mainLoopRun mainLoop
  where
-  app = App { view = view', update = update', inputs = [], initialState = 0 }
+  app = defaultApp { view = view', update = update', inputs = [], initialState = 0 }

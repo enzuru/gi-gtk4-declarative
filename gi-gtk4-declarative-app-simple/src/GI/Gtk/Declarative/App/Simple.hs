@@ -12,7 +12,10 @@
 -- framework.
 module GI.Gtk.Declarative.App.Simple
   ( App(..)
+  , defaultApp
   , AppView
+  , Sub
+  , sub
   , Transition(..)
   , Cmd
   , none
@@ -38,7 +41,9 @@ import           Control.Monad
 import           Data.Foldable                  ( for_
                                                 , traverse_
                                                 )
+import qualified Data.Function                 as Function
 import           Data.IORef
+import           Data.List                      ( nubBy )
 import           Data.Text                      ( Text )
 import           Data.Typeable
 import qualified GI.GLib                       as GLib
@@ -66,9 +71,67 @@ data App window state event =
     -- 'App's event type.
     , inputs       :: [Producer event IO ()]
     -- ^ Inputs are pipes 'Producer's that feed events into the application.
+    , subscriptions :: state -> [Sub event]
+    -- ^ What the application listens to, which the state decides. The
+    -- loop compares these with what it is running after every event:
+    -- a name that is new starts, a name that has gone is cancelled,
+    -- and a name in both is left running.
     , initialState :: state
     -- ^ The initial state value of the state reduction loop.
     }
+
+-- | An 'App' with nothing in it.
+--
+-- Fields are added to 'App' as the library grows, and a record built
+-- by naming the constructor has to name every field, so building one
+-- from this is what survives the next field:
+--
+-- @
+-- run defaultApp { view = view', update = update', initialState = 0 }
+-- @
+--
+-- The three fields with nothing to fall back on answer with an error
+-- that names what was left out.
+defaultApp :: App window state event
+defaultApp = App { update        = missing "update"
+                 , view          = missing "view"
+                 , inputs        = []
+                 , subscriptions = const []
+                 , initialState  = missing "initialState"
+                 }
+ where
+  missing :: String -> a
+  missing field =
+    error
+      (  "GI.Gtk.Declarative.App.Simple.defaultApp: this app has no "
+      <> field
+      )
+
+-- | Something an application listens to for as long as its state asks
+-- for it: a file being watched, a clock, a socket.
+--
+-- The name is the identity. The loop starts a name that is new and
+-- cancels one that has gone, and leaves a name it is already running
+-- alone, whatever producer is beside it this time. So everything that
+-- decides what the producer does belongs in the name:
+--
+-- @
+-- subscriptions = \state ->
+--   [ sub ("watch " <> Text.intercalate " " (folders state)) (watching (folders state))
+--   | not (null (folders state))
+--   ]
+-- @
+--
+-- A producer that ends on its own is not an error and is not started
+-- again. Its name stays claimed until the state stops asking for it.
+data Sub event = Sub
+  { subKey :: Text
+  , subRun :: Producer event IO ()
+  }
+
+-- | A subscription under this name.
+sub :: Text -> Producer event IO () -> Sub event
+sub = Sub
 
 -- | The top-level widget for the 'view' function of an 'App',
 -- requiring a GTK 'Gtk.Window'.
@@ -278,13 +341,14 @@ runLoopIn application App {..} = do
 
   events                     <- newChan
   -- The jobs of the commands an update has answered with, by the name
-  -- they run under.
+  -- they run under, and the subscriptions the state has asked for.
   jobs                       <- newIORef []
+  subs                       <- newIORef []
   (firstState, subscription) <- do
     firstState <- runUI (create firstMarkup)
     runUI (addWindow application firstState >> presentWindow firstState)
-    sub <- subscribe firstMarkup firstState (publishEvent events)
-    return (firstState, sub)
+    subscribed <- subscribe firstMarkup firstState (publishEvent events)
+    return (firstState, subscribed)
 
   -- What the loop is showing now, so that the window can be taken down
   -- at the end. The loop itself answers with the last model.
@@ -299,13 +363,15 @@ runLoopIn application App {..} = do
                                firstMarkup
                                events
                                jobs
+                               subs
                                subscription
                   )
                 $ \loop' -> Async.waitEither inputs' loop' >>= \case
                     Left _      -> Async.wait loop'
                     Right state -> state <$ Async.uninterruptibleCancel inputs'
-      -- Whatever ends the loop, the jobs it started end with it.
-      running = core `finally` stopEveryJob jobs
+      -- Whatever ends the loop, what it started ends with it.
+      running =
+        core `finally` (stopEveryJob jobs >> stopEveryJob subs)
 
   case application of
     Nothing -> running
@@ -313,32 +379,44 @@ runLoopIn application App {..} = do
       `finally` (runUI . destroyWindow =<< readIORef showing)
 
  where
-  wrappedLoop showing firstState firstMarkup events jobs subscription =
-    loop showing firstState firstMarkup events jobs subscription initialState
+  wrappedLoop showing firstState firstMarkup events jobs subs subscription =
+    -- What the first state listens to starts before the first event is
+    -- read, and inside this thread, so that an exception in it arrives
+    -- the way an exception in any other subscription does.
+    (   applySubs events subs (subscriptions initialState)
+      >> loop showing
+              firstState
+              firstMarkup
+              events
+              jobs
+              subs
+              subscription
+              initialState
+      )
       -- Catch exception of linked thread and reraise them without the
       -- async wrapping.
       `catch` (\(Async.ExceptionInLinkedThread _ e) -> throwIO e)
 
-  loop showing oldState oldMarkup events jobs oldSubscription oldModel = do
+  loop showing oldState oldMarkup events jobs subs oldSubscription oldModel = do
     event <- readChan events
     case update oldModel event of
       Transition newModel cmd -> do
         let newMarkup = view newModel
 
-        (newState, sub) <- case patch oldState oldMarkup newMarkup of
+        (newState, sub') <- case patch oldState oldMarkup newMarkup of
           Modify ma -> runUI $ do
             cancel oldSubscription
-            newState <- ma
-            sub      <- subscribe newMarkup newState (publishEvent events)
-            return (newState, sub)
+            newState  <- ma
+            subscribed <- subscribe newMarkup newState (publishEvent events)
+            return (newState, subscribed)
           Replace createNew -> runUI $ do
             destroyWindow oldState
             cancel oldSubscription
-            newState <- createNew
+            newState   <- createNew
             addWindow application newState
             presentWindow newState
-            sub <- subscribe newMarkup newState (publishEvent events)
-            return (newState, sub)
+            subscribed <- subscribe newMarkup newState (publishEvent events)
+            return (newState, subscribed)
           Keep -> return (oldState, oldSubscription)
 
         -- The jobs of the command run in threads of their own, so that
@@ -347,15 +425,16 @@ runLoopIn application App {..} = do
         -- TODO: Use prioritized queue for events returned by 'update', to take
         -- precendence over those from 'inputs'.
         runCmd events jobs cmd
+        applySubs events subs (subscriptions newModel)
 
         writeIORef showing newState
-        loop showing newState newMarkup events jobs sub newModel
+        loop showing newState newMarkup events jobs subs sub' newModel
       Exit -> return oldModel
 
 -- | The jobs running under a name. There are as many of these as an
 -- application has names for its jobs, which is a handful, so a list of
 -- them is cheaper to keep than a map.
-type RunningJobs = IORef [(Text, Async.Async ())]
+type Running = IORef [(Text, Async.Async ())]
 
 -- | Start the jobs of a command.
 --
@@ -363,7 +442,7 @@ type RunningJobs = IORef [(Text, Async.Async ())]
 -- stopping is a cancellation, and 'Async.link' passes on everything a
 -- thread dies of except being cancelled, so the loop hears about an
 -- exception in a job and hears nothing about one being replaced.
-runCmd :: Chan event -> RunningJobs -> Cmd event -> IO ()
+runCmd :: Chan event -> Running -> Cmd event -> IO ()
 runCmd events running (Cmd toRun) = for_ toRun $ \job -> do
   for_ (jobKey job) (stopJob running)
   started <- Async.async
@@ -372,7 +451,7 @@ runCmd events running (Cmd toRun) = for_ toRun $ \job -> do
   for_ (jobKey job) $ \key -> modifyIORef' running ((key, started) :)
 
 -- | Stop the job running under this name, if there is one.
-stopJob :: RunningJobs -> Text -> IO ()
+stopJob :: Running -> Text -> IO ()
 stopJob running key = do
   before <- readIORef running
   writeIORef running (filter ((/= key) . fst) before)
@@ -380,11 +459,35 @@ stopJob running key = do
        Async.uninterruptibleCancel
 
 -- | Stop every job, which is what the end of the loop does.
-stopEveryJob :: RunningJobs -> IO ()
+stopEveryJob :: Running -> IO ()
 stopEveryJob running = do
   before <- readIORef running
   writeIORef running []
   for_ before (Async.uninterruptibleCancel . snd)
+
+-- | Bring what is running in line with what the state asks for.
+--
+-- A name in both lists is left alone, producer and all: the producer
+-- beside a name this turn may be a different value from the one beside
+-- it last turn, and restarting on that would restart a file watcher on
+-- every keystroke.
+applySubs :: Chan event -> Running -> [Sub event] -> IO ()
+applySubs events running wanted = do
+  before <- readIORef running
+  let asked      = nubBy ((==) `Function.on` subKey) wanted
+      wantedKeys = map subKey asked
+      kept = [ running' | running' <- before, fst running' `elem` wantedKeys ]
+      gone = [ job | (key, job) <- before, key `notElem` wantedKeys ]
+      new  = [ s | s <- asked, subKey s `notElem` map fst before ]
+  for_ gone Async.uninterruptibleCancel
+  started <- traverse start new
+  writeIORef running (kept <> started)
+ where
+  start s = do
+    job <- Async.async
+      (runEffect (subRun s >-> Pipes.mapM_ (publishEvent events)))
+    Async.link job
+    pure (subKey s, job)
 
 -- | Tell the application about the window, so that it does not quit
 -- while the window is up.

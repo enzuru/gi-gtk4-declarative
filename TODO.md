@@ -40,6 +40,14 @@ checkout is still in a directory of the old name.
 
 ## Done
 
+- The loop's asynchrony. `subscriptions` is a function of the state,
+  diffed by name after every event, so a file watcher starts and stops
+  with the folders it watches. A `Transition` carries a `Cmd`, which is
+  a batch of jobs, and a job started under a name silently stops the
+  one running under it, which is what a preview of a half-written
+  expression wants. `defaultApp` is where an application is built from
+  now, so the next field is one nobody has to write.
+
 - A gesture that lives through a patch. A controller used to come off
   the widget with its subscription, and an application cancels and
   subscribes again on every event, so no handler could ever see the

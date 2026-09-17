@@ -90,7 +90,7 @@ update' state = \case
     pure Nothing
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = []
                       , initialState = State { people = staff, chosen = Nothing }

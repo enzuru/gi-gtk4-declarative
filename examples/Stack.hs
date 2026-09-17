@@ -64,7 +64,7 @@ update' State = \case
   Closed -> Exit
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = []
                       , initialState = State

@@ -97,7 +97,7 @@ update' s _      = Transition s none
 main :: IO ()
 main = do
   (output, input) <- spawn unbounded
-  void $ run App { view         = view' output
+  void $ run defaultApp { view         = view' output
                  , update       = update'
                  , inputs       = [fromInput input]
                  , initialState = Started Nothing

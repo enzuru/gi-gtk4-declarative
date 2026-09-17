@@ -69,7 +69,7 @@ update' state@State {..} AddRight = Transition
 update' _ Closed = Exit
 
 main :: IO ()
-main = void $ run App { view         = addBoxesView
+main = void $ run defaultApp { view         = addBoxesView
                       , update       = update'
                       , inputs       = []
                       , initialState = State [1] [2] 3
