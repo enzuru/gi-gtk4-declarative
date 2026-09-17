@@ -58,7 +58,7 @@ update' State {..} Decr   = Transition (State (count - 1)) none
 update' _          Closed = Exit
 
 main :: IO ()
-main = void $ run App { view         = incrDecrView
+main = void $ run defaultApp { view         = incrDecrView
                       , update       = update'
                       , inputs       = []
                       , initialState = State 0

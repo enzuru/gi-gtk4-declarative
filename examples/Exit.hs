@@ -52,7 +52,7 @@ update' (ExitingIn sec) CountDownExit =
 update' s@ExitingIn{} ExitApplication = Transition s none
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = []
                       , initialState = Running

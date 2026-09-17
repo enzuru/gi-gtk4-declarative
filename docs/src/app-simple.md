@@ -86,6 +86,62 @@ and destroys it when the view is replaced by one of another type.
 [gi-gtk4-declarative-app-simple]: https://hackage.haskell.org/package/gi-gtk-declarative-app-simple-0.2.0
 [Pipes]: http://hackage.haskell.org/package/pipes
 
+## What the application listens to
+
+`inputs` starts once and runs until the application ends, which is what
+a clock or a command line wants. A file watcher does not: which folders
+to watch is a fact about the state, and it changes.
+
+So the state says what to listen to, under a name:
+
+``` haskell
+defaultApp
+  { view = view'
+  , update = update'
+  , initialState = initial
+  , subscriptions = \state ->
+      [ sub ("watch " <> Text.intercalate " " (folders state))
+            (watching (folders state))
+      | not (null (folders state))
+      ]
+  }
+```
+
+After every event the loop compares the names the new state asks for
+with the ones it is running. A name that is new starts. A name that has
+gone is cancelled. A name in both is left running, producer and all.
+
+That last rule is the one to hold on to: **the name is the identity, and
+the producer beside it is not.** The producer is a new value on every
+turn, and restarting on that would restart the file watcher on every
+keystroke. So everything that decides what the producer does belongs in
+the name, which is why the name above lists the folders.
+
+The rest of the rules:
+
+- The subscriptions of the first state start before the first event is
+  read.
+- One name twice in a list is the first one; the rest are ignored.
+- A producer that ends on its own is not an error, and is not started
+  again. Its name stays claimed until the state stops asking for it.
+- An exception in a subscription takes the application down, the way one
+  in `inputs` does.
+- The loop cancels every subscription when it ends.
+
+`inputs` keeps its meaning beside this. It is what a state that never
+changes would ask for.
+
+### Coming from the older shape
+
+`App` has a field it did not have, and a record built by naming the
+constructor has to name every field. Build one from `defaultApp`
+instead, and the next field this library adds is one you do not have to
+write:
+
+``` haskell
+run defaultApp { view = view', update = update', initialState = 0 }
+```
+
 ## What an update asks for, beside the state
 
 An update answers with the next state and a `Cmd`: a batch of jobs for

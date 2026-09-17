@@ -7,10 +7,11 @@ module Main where
 import           Control.Concurrent            (newEmptyMVar, putMVar,
                                                 takeMVar, threadDelay)
 import qualified Control.Concurrent.Async      as Async
-import           Control.Monad                 (void)
+import           Control.Monad                 (forever, void)
 import           Data.Foldable                 (traverse_)
 import           Data.IORef
 import qualified Data.List                     as List
+import qualified Data.Text                     as Text
 import qualified GI.GLib                       as GLib
 import qualified GI.GLib.Constants             as GLib
 import qualified GI.Gio                        as Gio
@@ -165,8 +166,85 @@ main = hspec $ do
     it "propagates an exception from a stream" $
       runJobs (\_ -> stream (error "oh no")) [yield Begin, stopAfter 400]
         `shouldThrow` errorCall "oh no"
+  -- What the application listens to, which its state decides.
+  describe "subscriptions" $ do
+    -- The rule most easily got wrong: the name is the identity, and
+    -- the producer beside it is not.
+    it "leaves a name it is already running alone, whatever is beside it"
+      $ do
+          (starts, heard) <- runSubs
+            [ yield (Want ["one"])
+            , waiting 200
+            , yield (Want ["two"])
+            , stopSubsAfter 400
+            ]
+          starts `shouldBe` 1
+          -- Every event came from the producer that started first,
+          -- which the second turn did not replace.
+          heard `shouldSatisfy` all (== "one")
+    it "starts a name once, however many turns it lives through" $ do
+      (starts, _) <- runSubs
+        (  [yield (Want ["one"])]
+        <> concat (replicate 10 [waiting 30, yield (Want ["one"])])
+        <> [stopSubsAfter 300]
+        )
+      starts `shouldBe` 1
+    it "starts a name that is new" $ do
+      (starts, heard) <- runSubs
+        [ yield (Want [])
+        , waiting 200
+        , yield (Want ["one"])
+        , stopSubsAfter 400
+        ]
+      starts `shouldBe` 1
+      heard `shouldSatisfy` not . null
+    it "cancels a name that has gone, and hears nothing more from it" $ do
+      ticks <- newIORef (0 :: Int)
+      let counted = do
+            liftIO (modifyIORef' ticks (+ 1))
+            liftIO (threadDelay 50000)
+            counted
+      atDrop <- newIORef (0 :: Int)
+      _      <- timeout 3000000 . run $ defaultApp
+        { view          = \_ -> bin Gtk.Window [] (widget Gtk.Label [])
+        , update        = subsUpdate
+        , subscriptions = \state ->
+                            [ sub "one" counted | "one" `elem` wanted state ]
+        , inputs        = [ yield (Want ["one"])
+                          , waiting 300
+                            >> yield (Want [])
+                            >> waiting 100
+                            >> liftIO (writeIORef atDrop =<< readIORef ticks)
+                            >> waiting 400
+                            >> yield StopSubs
+                          ]
+        , initialState  = Subs [] []
+        }
+      dropped <- readIORef atDrop
+      ended   <- readIORef ticks
+      -- It was running, and it stopped when its name went.
+      dropped `shouldSatisfy` (> 0)
+      ended `shouldBe` dropped
+    it "cancels everything it is running when the app exits" $ do
+      ticks <- newIORef (0 :: Int)
+      let counted = do
+            liftIO (modifyIORef' ticks (+ 1))
+            liftIO (threadDelay 50000)
+            counted
+      _ <- timeout 3000000 . run $ defaultApp
+        { view          = \_ -> bin Gtk.Window [] (widget Gtk.Label [])
+        , update        = subsUpdate
+        , subscriptions = \_ -> [sub "one" counted, sub "two" counted]
+        , inputs        = [stopSubsAfter 300]
+        , initialState  = Subs ["one", "two"] []
+        }
+      atExit <- readIORef ticks
+      threadDelay 400000
+      afterwards <- readIORef ticks
+      atExit `shouldSatisfy` (> 0)
+      afterwards `shouldBe` atExit
   where
-    app = App
+    app = defaultApp
       { update = update'
       , view = view'
       , inputs = []
@@ -196,17 +274,59 @@ main = hspec $ do
     -- The jobs an update answers with, driven by the inputs given, and
     -- what they sent back.
     runJobs jobs ins =
-      fmap (fmap seen) . timeout 3000000 . run $ App
+      fmap (fmap seen) . timeout 3000000 . run $ defaultApp
         { view         = \_ -> bin Gtk.Window [] (widget Gtk.Label [])
         , update       = jobsUpdate jobs
         , inputs       = ins
         , initialState = Jobs []
         }
     says text = perform (pure (Just (Saw text)))
+    -- An app whose state says what to listen to. Each subscription
+    -- counts itself as it starts, and then says its own name over and
+    -- over, so that a producer that was replaced can be told from one
+    -- that was left alone.
+    runSubs ins = do
+      starts <- newIORef (0 :: Int)
+      final  <- timeout 3000000 . run $ defaultApp
+        { view          = \_ -> bin Gtk.Window [] (widget Gtk.Label [])
+        , update        = subsUpdate
+        , subscriptions = \state ->
+          [ sub "the name" (saying starts (Text.unpack name))
+          | name <- wanted state
+          ]
+        , inputs        = ins
+        , initialState  = Subs [] []
+        }
+      started <- readIORef starts
+      pure (started, maybe [] listened final)
+    saying starts name = do
+      liftIO (modifyIORef' starts (+ 1))
+      forever $ do
+        yield (Listened name)
+        liftIO (threadDelay 50000)
     saysAfter delay text =
       perform (threadDelay (delay * 1000) >> pure (Just (Saw text)))
     waiting delay = liftIO (threadDelay (delay * 1000))
     stopAfter delay = waiting delay >> yield Stop
+    stopSubsAfter delay = waiting delay >> yield StopSubs
+
+-- | The state of the app that listens: what it asks to listen to, and
+-- what it heard.
+data SubsState = Subs
+  { wanted   :: [Text.Text]
+  , listened :: [String]
+  }
+
+data SubsEvent
+  = Want [Text.Text]
+  | Listened String
+  | StopSubs
+
+subsUpdate :: SubsState -> SubsEvent -> Transition SubsState SubsEvent
+subsUpdate state = \case
+  Want names  -> Transition state { wanted = names } none
+  Listened it -> Transition state { listened = listened state <> [it] } none
+  StopSubs    -> Exit
 
 -- | The state of the app that runs jobs: what they sent back.
 newtype JobsState = Jobs { seen :: [String] }

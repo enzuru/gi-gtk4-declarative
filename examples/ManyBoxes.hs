@@ -44,7 +44,7 @@ update' ns IncrAll = Transition (succ <$> ns) none
 update' _  Closed  = Exit
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = []
                       , initialState = Vector.enumFromN 0 500

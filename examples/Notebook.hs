@@ -49,7 +49,7 @@ update' State {..} Incr = Transition State { count = count + 1 } none
 update' State {..} Closed = Exit
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = [incrPeriodically]
                       , initialState = State 0

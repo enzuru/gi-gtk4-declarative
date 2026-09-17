@@ -83,7 +83,7 @@ at :: Double -> Double -> Text
 at x y = Text.pack (show (round x :: Int) <> ", " <> show (round y :: Int))
 
 main :: IO ()
-main = void $ run App
+main = void $ run defaultApp
   { view         = view'
   , update       = update'
   , inputs       = []

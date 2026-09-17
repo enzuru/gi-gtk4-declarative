@@ -137,7 +137,7 @@ update' _ (NumberSet d) = Transition (State d) none
 update' _ Closed        = Exit
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = []
                       , initialState = State 1.0

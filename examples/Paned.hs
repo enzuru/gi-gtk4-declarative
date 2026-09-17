@@ -34,7 +34,7 @@ update' :: State -> Event -> Transition State Event
 update' _ Closed = Exit
 
 main :: IO ()
-main = void $ run App { view         = const view'
+main = void $ run defaultApp { view         = const view'
                       , update       = update'
                       , inputs       = []
                       , initialState = ()

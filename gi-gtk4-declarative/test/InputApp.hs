@@ -70,7 +70,7 @@ update' _ = \case
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
-  void $ run App { view         = view'
+  void $ run defaultApp { view         = view'
                  , update       = update'
                  , inputs       = []
                  , initialState = "nothing yet"

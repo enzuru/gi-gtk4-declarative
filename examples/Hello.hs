@@ -38,7 +38,7 @@ update' _ (Greet who) = Transition (Greeting who) none
 update' _ Closed      = Exit
 
 main :: IO ()
-main = void $ run App { view         = view'
+main = void $ run defaultApp { view         = view'
                       , update       = update'
                       , inputs       = [greetings]
                       , initialState = Initial
