@@ -63,6 +63,21 @@ is not dragged back on the next event.
   }
 ```
 
+## Moving a column
+
+A column that keeps its key keeps its widget, its width and the cells
+under it, and that holds when the columns are put in another order.
+GTK cannot move a column, so a column that moves is taken out of the
+view and put back, which costs it its header and its cells; the view
+therefore works out which columns actually moved and moves those.
+Dragging one column of twenty-seven moves one.
+
+This matters beyond the milliseconds. A header is GTK's own widget and
+there is no factory for it, so a program that puts a gesture or a widget
+on a header by hand loses it when that column is built again. Put such a
+thing on something that outlives a single column, such as the header
+row, rather than on the header of one column.
+
 ## Drawing a row again
 
 A patch draws every row on screen again, because the model has not
@@ -98,7 +113,8 @@ draws:
   , rowUnchanged = Just (==)
   }
   where
-    columnsOf sheet = [ column key title (ow -> cellAt sheet row key) | ... ]
+    columnsOf sheet = [ column key title (
+ow -> cellAt sheet row key) | ... ]
 ```
 
 Row 4 is the number 4 in every render, so the view is told that row 4

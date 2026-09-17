@@ -583,3 +583,238 @@ its own any more.
 That leaves item 16, the toast, which nobody needs to do anything about:
 a toast is a thing that happens rather than a thing that is, and
 catching the overlay with `afterCreated` is a fair way to say so.
+
+## 17. Moving a column should not rebuild every column
+
+Found by measuring, after the loop changed hands and Cellar felt slower.
+
+The loop draws the window and patches it once per event, which is the
+arrangement and is fine: the median patch of Cellar's whole window is
+22 ms of CPU. What is not fine is the outliers. In a forty-second
+session that drags a row and then a column twice, three patches cost
+between 500 ms and 760 ms, and every one of them is a column moving.
+
+`patchColumns` handles a reorder by taking every kept column out of the
+view and putting them all back:
+
+```haskell
+  reordered <- if keptKeys == wantedKept
+    then pure kept
+    else do
+      for_ kept (Gtk.columnViewRemoveColumn view . recordColumn)
+      pure mempty
+```
+
+Every column is then built again by `newColumn` -- a fresh factory, a
+fresh `GtkColumnViewColumn`, and fresh cell widgets for every row on
+screen. Moving one column of twenty-seven rebuilds twenty-seven.
+
+What to do. A reorder is a permutation, and GTK can express one column
+at a time: `gtk_column_view_remove_column` on the column that moved and
+`gtk_column_view_insert_column` at its new index leaves the others where
+they are. Take the difference between the two orders and move the
+columns that actually moved, rather than rebuilding on any difference at
+all. For a drag, which moves one column, that is one remove and one
+insert.
+
+Test. A property that drags one column of several and asserts that the
+widgets of the columns that did not move are the same widgets
+afterwards. `prop_a_column_that_stays_keeps_its_widget` is the shape;
+this is the same question asked of a reorder rather than an insert.
+
+There is a second reason to want this beyond the milliseconds. Every
+rebuilt column is a new header widget, and a header is GTK's own widget
+with no factory, so anything an application put on the old one is gone.
+That is what broke dragging a column twice in Cellar: the gesture went
+with the heading. Cellar now keeps its gesture on the header row, which
+outlives them, so it is fixed either way -- but a library that rebuilds
+less would have made the bug impossible rather than survivable.
+
+## Two more, about the loop's asynchrony
+
+Both come out of a design note in the Cellar repository, `ASYNC.md`. It
+asks what parts of an FRP library an Elm-shaped loop can hold, and
+lands on these two. Both are additions in spirit. Both break the `App`
+and `Transition` types in practice, because neither has a smart
+constructor, and that is discussed under each.
+
+Item 18 stands on its own. Item 19 stands on its own. Cellar wants both
+and can use either first.
+
+## 18. Subscriptions that come from the state
+
+`inputs` starts once:
+
+```haskell
+, inputs :: [Producer event IO ()]
+```
+
+A producer therefore runs from the first event to the last, whatever the
+state is doing. Two of Cellar's must not.
+
+The file watcher is one. Which folders to watch is a fact about the
+state, so Cellar starts and stops it by hand, through an `IORef` in a
+record of mutable fields it carries for that purpose. The stall watchdog
+is the other. It wakes twice a second forever and reaches into the
+kernel to ask whether any request is outstanding. Whether to run at all
+is also a fact about the state.
+
+What to do. Add a keyed subscription and diff it each turn:
+
+```haskell
+data Sub event = Sub
+  { subKey :: Text
+  , subRun :: Producer event IO ()
+  }
+
+sub :: Text -> Producer event IO () -> Sub event
+```
+
+and a field on `App`:
+
+```haskell
+, subscriptions :: state -> [Sub event]
+```
+
+The rules, in order of how easy they are to get wrong:
+
+- **The key is the identity.** On each turn the loop compares the keys
+  of `subscriptions newModel` with the keys it is running. A key that is
+  new starts. A key that has gone is cancelled. A key in both is left
+  alone. Its producer keeps running and is **not** restarted, even when
+  the producer beside it is a different value.
+- The application therefore puts everything that matters into the key.
+  Cellar will watch three folders under a key that names them, and a
+  change of folders is a change of key.
+- If one list holds a key twice, take the first and ignore the rest. Do
+  not fail.
+- `inputs` keeps its meaning. It is the subscriptions of a state that
+  never changes, and it runs as it does today.
+- `subscriptions initialState` starts before the loop reads its first
+  event.
+
+Exceptions and shutdown must match `inputs` as it behaves now:
+
+- One async per running subscription. An exception in one reaches the
+  loop the way an exception in `inputs` does today, through
+  `ExceptionInLinkedThread` and the catch in `wrappedLoop`.
+- Cancel with `uninterruptibleCancel`, as `runProducers` is cancelled
+  now.
+- A producer that ends on its own is not an error. Do not restart it.
+  Its key stays claimed until the state stops asking for it.
+- The loop cancels every running subscription when it exits.
+
+The breaking part. `App` is a plain record with no smart constructor, so
+a new field breaks every construction of it. There are two ways out. You
+can add `subscriptions` and bump the major version with an upgrade note
+in `docs/src/app-simple.md`. Or you can add a `defaultApp` first, and
+make the new field the one thing a user does not have to write. The
+second is kinder, and it pays again for the next field.
+
+Test. Drive a state that turns subscriptions on and off, and count:
+
+- A key that stays across ten turns starts once.
+- A key that goes is cancelled, and its producer sends nothing after the
+  turn that dropped it.
+- A key that is new starts within one turn.
+- A key whose producer value changes but whose name does not is **not**
+  restarted. This is the rule most likely to be got wrong, so test it
+  first.
+- The app exits with subscriptions running, and every one of them is
+  cancelled.
+
+## 19. A transition carries a batch of jobs, not one action
+
+Today an update yields at most one deferred event:
+
+```haskell
+data Transition state event = Transition state (IO (Maybe event)) | Exit
+```
+
+Anything beyond that one event goes out of band. Cellar carries a
+`Pipes.Concurrent` mailbox for exactly that, and passes the posting
+function into its update so that the update can reach it. That mailbox
+is the seam. With a batch of jobs it goes away, and Cellar's update can
+become a pure function from state and event to state and jobs.
+
+The second half is cancellation, and it is worth more. Cellar's cell
+editor asks the kernel what a half-written expression comes to on every
+keystroke, and only the last answer matters, so Cellar keeps a map from
+request id to callback to sort that out. Column resizing has the same
+shape and no equivalent. GTK emits `PropertyNotify #fixedWidth` on every
+change while a header edge is dragged, and Cellar answers each one by
+writing the whole sheet to disk. One of those writes measures 4.0 ms on
+a sheet of 200 cells. A drag pays it over and over.
+
+What to do:
+
+```haskell
+data Cmd event
+
+instance Semigroup (Cmd event)
+instance Monoid (Cmd event)
+
+none    :: Cmd event
+perform :: IO (Maybe event) -> Cmd event
+emit    :: [event] -> Cmd event
+stream  :: Producer event IO () -> Cmd event
+keyed   :: Text -> Cmd event -> Cmd event
+
+data Transition state event = Transition state (Cmd event) | Exit
+```
+
+The rules:
+
+- The jobs of one `Cmd` run concurrently, each in its own async, the way
+  the single action runs today.
+- `keyed k` names every job in the `Cmd` it wraps. Starting a job under
+  a key cancels the job already running under that key.
+- **Cancelling this way is silent.** It is not an error, it produces no
+  event, and it does not reach the loop.
+- An unkeyed job is never cancelled by another job.
+- Events from a job go to the channel the loop reads, in the order the
+  job yields them.
+- An exception in a job reaches the loop as it does now.
+- The loop cancels every running job when it exits.
+
+Out of scope, and worth saying so. `runLoopIn` carries a TODO about a
+prioritised queue, so that events from `update` take precedence over
+events from `inputs`. That is a separate question. Leave it alone unless
+it falls out of this work for free.
+
+The breaking part is smaller than item 18. Every call site changes from
+`Transition s action` to `Transition s (perform action)`, which is
+mechanical, and `perform` is exported to make it a one-line edit. Put
+the upgrade note in `docs/src/app-simple.md` beside the other one.
+
+Test:
+
+- A `Cmd` of three jobs runs all three.
+- A job built with `stream` delivers three events, in order.
+- A second job under the same key cancels the first. Assert that the
+  first sends nothing after the second starts.
+- A job under a different key is left alone by that cancellation.
+- `none` does nothing and does not hold the loop up.
+- An exception in a job takes the app down the way an exception in
+  today's action does.
+
+## Not items, but coming
+
+Cellar pokes four widgets through its own record of mutable fields,
+because the declarative layer cannot describe what it wants. These are
+gaps in the library rather than parts of Cellar's design, and they are
+written here so that they are not a surprise later. None of them is a
+request yet.
+
+- **Focus.** Cellar moves the keyboard focus to the grid after opening a
+  workbook. There is no way to say in markup that a widget wants the
+  focus.
+- **A stylesheet on the display.** A cell can ask to be drawn in any
+  colour, and GTK sets a colour only through CSS, so Cellar loads a
+  provider it rebuilds as the colours change. A window-level attribute
+  for a provider would cover it.
+- **A drag highlight.** Cellar draws the line being dragged by setting
+  classes on widgets it reached for directly.
+- **A menu model.** `Gio.Menu` is a model rather than a widget, and
+  Cellar fills one in by hand because its length is not known until the
+  preferences are read.
