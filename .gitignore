@@ -12,6 +12,12 @@
 /cabal.project.local
 **stack.yaml.lock
 
+# The working documents that pass between this library and the programs
+# that use it: what a program asks for, and what was done about it.
+# They belong to a conversation rather than to the library.
+/CHANGES-FOR-*.md
+/ANSWERS-FOR-*.md
+
 # Profiling and flamegraphs
 /gi-gtk-*.prof
 /gi-gtk-*.svg
