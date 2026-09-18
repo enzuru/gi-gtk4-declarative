@@ -3,8 +3,8 @@
 Stones is a Go board in a libadwaita window. It lives in the `stones`
 repository beside this one, under the GPL, and it is built on all three
 packages here: the markup, the application loop, and the libadwaita
-widgets. It draws its board with a custom widget. It holds a game per tab in an
-`AdwTabView`, and it talks to a GNU Go process for each tab.
+widgets. It draws its board with a custom widget. It holds a game per
+tab in an `AdwTabView`, and it talks to a GNU Go process for each tab.
 
 Seven items. Items 1 and 2 changed the shape of Stones, and they are
 the two worth doing first. Items 3 to 5 each cost a working day. Items
@@ -290,14 +290,113 @@ major version, or leave it.
 Test. The examples are the test. If they compile with their primes
 removed, it works.
 
-## What Stones does by hand until items 1 and 2 land
+## 8. The rows and the toggle group a settings page is made of
 
-Its per-game update in `Stones.Session` answers with a `Step`, which is
-the new session and `Maybe (IO Reply)`. Its window update in
-`Stones.App` answers with a `Doing`, which is the new state and
-`Maybe (IO [Event])`. `update'` is a wrapper that turns the second into
-a `Transition` with `stream`.
+A second request, from the page Stones puts up when a tab opens. That
+page asks three things: which board, which colour, and how hard the
+opponent should try. Every one of them is a choice from a short list,
+which is what an @AdwToggleGroup@ is. The three of them together are
+what an @AdwPreferencesGroup@ is.
 
-Both of those types exist because a `Cmd` cannot be mapped and cannot
-be run. Both would go, and `Stones.Session` would answer with a
-`Transition Session SessionEvent` that the window lifts.
+This package has instances for nine single-child Adwaita widgets, the
+header bar, and the toolbar view. It has none for the row family. So the
+page is a `GtkBox` of `GtkBox`es. Each choice is a row of linked
+`GtkButton`s, and the one that is picked carries the `suggested-action`
+class. There is a comment in `Stones.Setup` that says why they cannot be
+toggle buttons:
+
+```haskell
+-- They are buttons rather than toggle buttons. A toggle clicked while
+-- it is already on turns itself off, and the markup that follows says
+-- what it always said, so nothing turns it back on.
+```
+
+That is the real reason to want this. A `GtkToggleButton` whose `active`
+is bound to the markup is broken in a way that is nobody's fault. The
+markup says `True` and the user clicks it, so GTK sets it to `False`.
+The next markup says `True` again, and the patch sets nothing, because
+the old value and the new value agree. `AdwToggleGroup` has one `active`
+for the whole group. The value the markup sets and the value the user
+changes are then one value. The group cannot end up showing something
+the markup does not say.
+
+What to do. Instances for these, in the libadwaita package:
+
+- `AdwPreferencesGroup`, a container of rows, with a title and a
+  description.
+- `AdwToggleGroup`, a container of `AdwToggle`s, with `active` and
+  `active-name`.
+- `AdwActionRow`, which holds a title and a subtitle and takes widgets
+  at either end, so it is a container rather than a bin.
+- `AdwSwitchRow` and `AdwSpinRow`, which are rows with one value each
+  and no children, so they are plain widgets.
+- `AdwComboRow`, which needs a model. It is the one that does not fit,
+  and it can wait: a toggle group covers a list of three, and a list
+  long enough to want a combo row wants the model views instead.
+
+gi-adwaita binds all of them. `GI.Adw.Objects.ToggleGroup` and
+`GI.Adw.Objects.Toggle` are both in the package that is in nixpkgs
+today, so nothing is waiting on a binding release.
+
+What it buys. The page in Stones is about ninety lines of Haskell, of
+which the `choice` and `pick` helpers are a hand-rolled toggle group.
+With these it is a preferences group holding three rows, each with a
+toggle group in it, and the helpers go.
+
+Test. A property that builds a toggle group, patches `active` from one
+toggle to another, and reads the realized widget back. Then the one that
+matters: click it. The suite already drives real input for the gestures,
+and this is the same shape of problem. The whole point is that the
+widget's own state and the markup's state stay one value.
+
+## What Stones did with the answers
+
+This section used to say what Stones did by hand while it waited. The
+answers are in `ANSWERS-FOR-STONES.md`, and Stones has taken them up.
+What follows is what happened, so that the two documents are a whole
+record rather than half of one. Item 8 above was added afterwards and
+has not been answered yet.
+
+`Step` and `Doing` are gone. Those were the two types Stones had
+because a `Cmd` could not be mapped and could not be run. Its per-game
+update now answers with a `Transition Session SessionEvent`, and the
+window lifts one into its own:
+
+```haskell
+inTab state tab move = bimap putBack (InTab tab) (move session)
+```
+
+The tests read a command back with `jobsOf` and run the producer. That
+is what says a tab closing stops the GNU Go that was playing in it.
+`Stones.Session` and `Stones.App` are 26 lines shorter than they were.
+
+Item 1a was the useful one, and nobody had asked for it. Stones does
+not name any of its jobs, so nothing collapsed, and the reason is worth
+writing down. What a game asks of its opponent is several lines of one
+conversation over a pipe. A named job is stopped when another job takes
+its name. One stopped between two of those lines leaves the answer to
+the first sitting in the pipe. The next question then reads it as its
+own answer. So the names stay off. The tests assert that they are off,
+and a comment points at `qualifying` for whoever puts one on.
+
+Item 3 went unused. `addOwnedController` does what was asked, and the
+answer was right that the other design is the better one here: this
+board is subscribed to after every event, so its handlers are connected
+once and read a box for the callback. The function is there for a
+widget that is not shaped like that one.
+
+Item 4 needed nothing. The test already turned the loop before reading
+the property, and the reason the eager lookup cannot work was new to
+us. A widget has no parent while its own `create` runs, so `findNamed`
+walks up to the widget itself and searches its own subtree alone.
+
+Item 5 needed nothing. The test in Stones asserts that a board is never
+replaced, rather than that a patch is a `Keep`. That was the right
+assertion before the haddock said so, and it is still the right one.
+
+Item 7 was turned down, and the `hiding` line in the answer is a good
+one. Stones did not take it up, for a reason that is about Stones
+rather than about the line. Its test modules import both `Stones.App`
+and the loop without qualifying either. Dropping the primes there would
+trade three tidy names for an ambiguity at every use, so `update'` and
+`view'` stay.

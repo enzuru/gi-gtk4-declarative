@@ -39,6 +39,59 @@ which GTK reports as a warning at run time rather than as an error. The
 instance calls `adw_application_window_set_content`, so this is a
 mistake a program using it does not make.
 
+## A settings page
+
+A page of settings is an `AdwPreferencesGroup` holding rows:
+
+``` haskell
+container Adw.PreferencesGroup
+  [#title := "Board", headerSuffix (widget Gtk.Button [#iconName := "view-refresh"])]
+  [ widget Adw.SwitchRow [#title := "Show coordinates", #active := coordinates state]
+  , container Adw.ActionRow
+              [#title := "Size"]
+              [rowSuffix (toggleGroup [] sizes)]
+  ]
+```
+
+A row with one value and no children is a widget like any other.
+`Adw.SwitchRow`, `Adw.SpinRow`, `Adw.EntryRow` and
+`Adw.PasswordEntryRow` need nothing of their own, because what they hold
+is properties. A preferences group takes them as they are, and so does a
+list box.
+
+An `Adw.ActionRow` holds widgets at either end of itself, so it is a
+container, with `rowPrefix` and `rowSuffix` for the two ends.
+
+## One choice out of a few
+
+An `AdwToggleGroup` is the widget for a choice from a short list:
+
+``` haskell
+toggleGroup []
+  defaultToggleGroupParams
+    { toggles     = [toggle "9" "9x9", toggle "13" "13x13", toggle "19" "19x19"]
+    , active      = Just (sizeName state)
+    , onActivated = Just Chose
+    }
+```
+
+Each toggle has a name, which is what `active` names, what `onActivated`
+answers with, and what matches a toggle with the one of the render
+before. The group is not a container: what it holds are `AdwToggle`
+objects rather than widgets, so they are described here as data.
+
+Use this rather than a row of toggle buttons. A `GtkToggleButton` whose
+`active` comes from the markup does not hold together: the markup says
+the button is on, somebody clicks it, GTK turns it off, and the next
+render says what it said before. The declared value did not change, so
+the patch sets nothing, and the button stays off.
+
+A toggle group closes that. It has one `active` for the whole group, and
+GTK will not let a click turn the chosen toggle off, which the input
+test in this repository clicks twice to make sure of. `active` is also
+read back off the group before it is set, so a group that has drifted
+from the markup is put back, however it got there.
+
 ## The bars of a toolbar view
 
 A toolbar view holds its content as a child, and one bar at each end in

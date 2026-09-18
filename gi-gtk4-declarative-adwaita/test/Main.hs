@@ -14,6 +14,8 @@ import qualified GI.Gtk.Declarative.Adwaita.ContainerTest
                                                as ContainerTest
 import qualified GI.Gtk.Declarative.Adwaita.ReferenceTest
                                                as ReferenceTest
+import qualified GI.Gtk.Declarative.Adwaita.RowsTest
+                                               as RowsTest
 import qualified GI.Gtk.Declarative.Adwaita.TabViewTest
                                                as TabViewTest
 
@@ -34,6 +36,7 @@ main = do
       [ BinTest.tests
       , ContainerTest.tests
       , ReferenceTest.tests
+      , RowsTest.tests
       , TabViewTest.tests
       ]
     GLib.mainLoopQuit mainLoop
