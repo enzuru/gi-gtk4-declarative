@@ -79,6 +79,32 @@ A choice of one out of several is
 `GI.Gtk.Declarative.Adwaita.ToggleGroup`, which holds itself and needs
 nothing here.
 
+## Properties to leave alone
+
+The rule is not "a property a person can change". It is "a property a
+person can change, whose value the program decides". Some properties a
+person changes belong to the widget, and the program only reads them
+back.
+
+A window's `#defaultWidth` and `#defaultHeight` are the pair to know
+about. GTK writes the new size into them when the window is resized,
+which is how a program saves a size to restore later. Declare them with
+`:=`, and that works: the markup says 760, the window ends up at 900,
+the declared value has not changed, so nothing is set and the window
+stays where it was put. Hold them, and every patch snaps the window
+back to 760, which is every event.
+
+The same shape turns up in `columnFixedWidth` on a column view, where
+the haddock says it in other words: setting a width on every render
+pins the column, which is not what you want when the user is allowed to
+resize it. A window's `#maximized` and a paned's `#position` are two
+more.
+
+So the question to ask of a property is not whether somebody can change
+it. It is who decides what it says. If the program decides and the
+widget must follow, hold it. If the widget decides and the program only
+wants to know, leave it as `:=` and read it back through an event.
+
 `holding` costs a read of the property on every patch, which is why it
 is asked for rather than assumed. The value read and the value declared
 have to be one type, so a property whose getter answers `Maybe` where

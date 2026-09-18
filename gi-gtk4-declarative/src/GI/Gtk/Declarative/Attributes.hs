@@ -216,6 +216,13 @@ instance Functor (Attribute widget) where
 -- a spin row. A choice of one out of several is
 -- @GI.Gtk.Declarative.Adwaita.ToggleGroup@, which holds itself.
 --
+-- Not every property a person can change wants this. Some belong to
+-- the widget, and the program only reads them back: GTK writes a
+-- window's new size into @#defaultWidth@ and @#defaultHeight@ when
+-- somebody resizes it, and a held pair would snap the window back on
+-- the next patch. The question is not whether somebody can change the
+-- property. It is who decides what it says.
+--
 -- It costs a read of the property on every patch, so it is asked for
 -- rather than assumed. The value read and the value declared are one
 -- type, which rules out a property whose getter answers @Maybe@ where
