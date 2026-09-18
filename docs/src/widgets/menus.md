@@ -50,6 +50,17 @@ menuButton [#iconName := "open-menu-symbolic"]
 
 !!! note
 
+    The items are a `Vector`, as the children and the attributes of
+    every widget here are. `OverloadedLists` covers a list literal and
+    leaves a list comprehension alone, so a comprehension needs
+    `Vector.fromList` around it:
+
+    ``` haskell
+    menuSection Nothing (Vector.fromList [ menuItem (label n) (New n) | n <- sizes ])
+    ```
+
+!!! note
+
     A menu bar needs a window that shows one. Put the `menuBar` widget
     in a box, or set the window's `#showMenubar` property when you use a
     `GtkApplication` menu instead.

@@ -8,6 +8,7 @@ import           Control.Concurrent            (newEmptyMVar, putMVar,
                                                 takeMVar, threadDelay)
 import qualified Control.Concurrent.Async      as Async
 import           Control.Monad                 (forever, void)
+import           Data.Bifunctor                (bimap)
 import           Data.Foldable                 (traverse_)
 import           Data.IORef
 import qualified Data.List                     as List
@@ -19,6 +20,7 @@ import qualified GI.Gtk                        as Gtk
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.App.Simple
 import           Pipes
+import qualified Pipes.Prelude                 as Pipes
 import           System.Timeout
 import           Test.Hspec
 
@@ -166,6 +168,61 @@ main = hspec $ do
     it "propagates an exception from a stream" $
       runJobs (\_ -> stream (error "oh no")) [yield Begin, stopAfter 400]
         `shouldThrow` errorCall "oh no"
+  -- A command read as another kind of event, which is how a part of
+  -- an application that has its own events goes inside one that has
+  -- others.
+  describe "mapping" $ do
+    it "wraps the events of a command" $ do
+      seen <- runJobs (\_ -> Said <$> saysPlain "one")
+                      [yield Begin, stopAfter 400]
+      seen `shouldBe` Just ["said one"]
+    it "wraps the events of a stream, and keeps taking them" $ do
+      seen <- runJobs
+        (\_ -> Said <$> stream (traverse_ yield (["one", "two", "three"] :: [String])))
+        [yield Begin, stopAfter 400]
+      seen `shouldBe` Just ["said one", "said two", "said three"]
+    it "wraps the state and the events of a transition" $ do
+      let stepped = bimap (+ (1 :: Int)) Saw (Transition 1 (emit ["one"]))
+      case stepped of
+        Transition state cmd -> do
+          state `shouldBe` 2
+          jobEvents cmd `shouldReturn` [Saw "one"]
+        Exit -> expectationFailure "a transition became an exit"
+    it "leaves an exit alone" $ do
+      let stepped = fmap Saw (Exit :: Transition Int String)
+      case stepped of
+        Exit          -> pure ()
+        Transition{}  -> expectationFailure "an exit became a transition"
+  -- A command can be opened up, so that a test can say what it does
+  -- without running a loop.
+  describe "jobsOf" $ do
+    it "gives the jobs of a command, with the names they run under" $ do
+      let named = keyed "x" (emit [1 :: Int, 2]) <> perform (pure Nothing)
+      map fst (jobsOf named) `shouldBe` [Just "x", Nothing]
+    it "gives the events a job yields" $
+      jobEvents (keyed "x" (emit [1 :: Int, 2])) `shouldReturn` [1, 2]
+  -- Names are shared by everything the loop runs, so a part of an
+  -- application that is there twice has to say which one it is.
+  describe "qualifying" $ do
+    it "puts a prefix in front of a name, and leaves an unnamed job alone"
+      $ do
+          let mixed = keyed "preview" (emit [1 :: Int]) <> perform (pure Nothing)
+          map fst (jobsOf (qualifying "tab-3" mixed))
+            `shouldBe` [Just "tab-3/preview", Nothing]
+    -- The reason it is there: without it these two stop each other.
+    it "keeps two parts from stopping each other's jobs" $ do
+      seen <- runJobs
+        (\case
+          Begin ->
+            qualifying "one" (keyed "answer" (saysAfter 300 "from one"))
+              <> qualifying "two" (keyed "answer" (saysAfter 300 "from two"))
+          _ -> none
+        )
+        [yield Begin, stopAfter 800]
+      fmap List.sort seen `shouldBe` Just ["from one", "from two"]
+    it "renames subscriptions the same way" $ do
+      let named = qualifyingSubs "tab-3" [sub "ticks" (pure ())]
+      map subKey named `shouldBe` ["tab-3/ticks"]
   -- What the application listens to, which its state decides.
   describe "subscriptions" $ do
     -- The rule most easily got wrong: the name is the identity, and
@@ -281,6 +338,13 @@ main = hspec $ do
         , initialState = Jobs []
         }
     says text = perform (pure (Just (Saw text)))
+    -- The same, answering with the text itself, for a command that is
+    -- mapped into an event by whoever takes it.
+    saysPlain text = perform (pure (Just text))
+    -- The events a job yields, for a job that ends.
+    jobEvents cmd = case jobsOf cmd of
+      [(_, producer)] -> Pipes.toListM producer
+      jobs            -> fail ("expected one job, found " <> show (length jobs))
     -- An app whose state says what to listen to. Each subscription
     -- counts itself as it starts, and then says its own name over and
     -- over, so that a producer that was replaced can be told from one
@@ -335,7 +399,11 @@ data JobsEvent
   = Begin
   | Again
   | Saw String
+  -- | What a mapped command answers with, so that a wrapped event can
+  -- be told from one that went straight through.
+  | Said String
   | Stop
+  deriving (Eq, Show)
 
 -- | An update that answers with the jobs under test, and writes down
 -- what they send back.
@@ -345,9 +413,10 @@ jobsUpdate
   -> JobsEvent
   -> Transition JobsState JobsEvent
 jobsUpdate jobs state = \case
-  Saw text -> Transition state { seen = seen state <> [text] } none
-  Stop     -> Exit
-  event    -> Transition state (jobs event)
+  Saw text  -> Transition state { seen = seen state <> [text] } none
+  Said text -> Transition state { seen = seen state <> ["said " <> text] } none
+  Stop      -> Exit
+  event     -> Transition state (jobs event)
 
 type AppState = Int
 

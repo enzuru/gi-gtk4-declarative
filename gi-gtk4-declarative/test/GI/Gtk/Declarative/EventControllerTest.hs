@@ -26,6 +26,8 @@ import qualified GI.Gtk                        as Gtk
 import           Hedgehog                hiding ( label )
 
 import           GI.Gtk.Declarative
+import           GI.Gtk.Declarative.EventController
+                                                ( addOwnedController )
 import           GI.Gtk.Declarative.EventSource
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.TestUtils
@@ -201,6 +203,30 @@ prop_a_cancelled_subscription_stops_emitting = withTests 1 . property $ do
     _   <- Gtk.widgetGrabFocus second
     atomically (flushTBQueue received)
   events === []
+
+-- | A controller added by hand can be kept.
+--
+-- A widget takes a controller over when it is given one, so the value
+-- that went in is nobody's afterwards, and using it again is what the
+-- bindings warn about. This is the way a custom widget adds one and
+-- still has a reference to work with.
+prop_a_controller_added_by_hand_can_be_kept = withTests 1 . property $ do
+  (added, names) <- evalIO $ runUI $ bracket (Gtk.new Gtk.Window []) Gtk.windowDestroy $ \window -> do
+    area <- Gtk.new Gtk.DrawingArea []
+    Gtk.windowSetChild window (Just area)
+    widget'  <- Gtk.toWidget area
+    baseline <- countControllers widget'
+    gesture  <- Gtk.gestureClickNew
+    kept     <- addOwnedController area gesture
+    -- Both of these read the value that came back, which is the whole
+    -- point of it coming back.
+    Gtk.eventControllerSetName kept (Just "kept by hand")
+    _     <- Gtk.on kept #pressed (\_nPress _x _y -> pure ())
+    after <- countControllers widget'
+    found <- traverse Gtk.eventControllerGetName =<< controllersOf widget'
+    pure (after - baseline, found)
+  added === 1
+  names === [Just "kept by hand"]
 
 -- | Whether every round found the same controllers.
 allSame :: Eq a => [a] -> Bool

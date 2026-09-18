@@ -21,6 +21,15 @@
 -- you describe the menu as a tree of 'MenuItem' values that carry
 -- events, and the actions behind them are created, named, and wired to
 -- the event callback for you.
+-- The items are a 'Vector', as the children and the attributes of
+-- every widget in this library are. @OverloadedLists@ covers a list
+-- literal and leaves a list comprehension alone, so a comprehension
+-- needs @Vector.fromList@ around it:
+--
+-- @
+-- menuSection Nothing [menuItem "9x9" (New 9), menuItem "13x13" (New 13)]
+-- menuSection Nothing (Vector.fromList [ menuItem (label n) (New n) | n <- sizes ])
+-- @
 module GI.Gtk.Declarative.MenuModel
   ( MenuItem(..)
   , menuItem

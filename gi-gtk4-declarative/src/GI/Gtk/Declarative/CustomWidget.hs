@@ -29,6 +29,14 @@ import           GI.Gtk.Declarative.State
 data CustomPatch widget internalState
   = CustomReplace
   | CustomModify (widget -> IO internalState)
+  -- | Leave the widget's own state as it is.
+  --
+  -- This is not the same as the 'GI.Gtk.Declarative.Patch.Keep' of a
+  -- patch, and a custom widget that answers with it is still patched:
+  -- the properties, the classes, the slots and the references of its
+  -- attribute list are applied whatever this says, so the patch is a
+  -- 'GI.Gtk.Declarative.Patch.Modify'. What this skips is the custom
+  -- action, and nothing else.
   | CustomKeep
 
 -- | A custom widget specification, with all functions needed to
