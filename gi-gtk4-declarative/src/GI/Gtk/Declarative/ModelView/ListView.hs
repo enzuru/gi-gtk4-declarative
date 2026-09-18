@@ -190,12 +190,13 @@ instance Patchable (ListView item) where
             sameSelection =
               selectionModeOf (viewSelection (stateTreeCustomState top))
                 == selectionMode newParams
-        in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+        in  if oldCollected `canBeModifiedTo` newCollected
               && sameSelection
               then Modify $ do
                 let view  = stateTreeWidget top
                     state = stateTreeCustomState top
                 updateProperties view oldCollectedProps newCollectedProps
+                updateHeldProperties view (collectedHeld newCollected)
                 updateClasses view
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

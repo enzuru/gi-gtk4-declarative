@@ -210,11 +210,12 @@ instance Patchable ToggleGroup where
             newCollected      = collectAttributes newAttributes
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
-        in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+        in  if oldCollected `canBeModifiedTo` newCollected
               then Modify $ do
                 let group = stateTreeWidget top
                     state = stateTreeCustomState top
                 updateProperties group oldCollectedProps newCollectedProps
+                updateHeldProperties group (collectedHeld newCollected)
                 updateClasses group
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

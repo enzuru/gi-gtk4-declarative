@@ -70,6 +70,93 @@ prop_classes_are_patched = withTests 1 . property $ do
   -- there rather than the order it is in.
   found === ["from-somewhere-else", "three", "two"]
 
+-- * Properties a widget must not drift from
+
+-- | An entry whose text comes from the state, with and without
+-- 'holding'.
+entrySaying :: Bool -> Text -> Widget Inner
+entrySaying held text = widget
+  Gtk.Entry
+  [if held then holding #text text else #text := text]
+
+-- | Somebody types, and the render that follows says what it said
+-- before. An ordinary property is compared with what the markup said
+-- last time, so it finds nothing to do, and the entry keeps the
+-- typing. This is the failure 'holding' is for, and it is silent.
+prop_a_property_that_is_not_held_keeps_what_was_typed =
+  withTests 1 . property $ do
+    said <- evalIO (typingInto False)
+    said === "hello world"
+
+-- | A property the widget is held to is read back off it, so the same
+-- render puts the entry where the markup says.
+prop_a_held_property_is_put_back_after_typing = withTests 1 . property $ do
+  said <- evalIO (typingInto True)
+  said === "hello"
+
+-- | Render an entry saying "hello", type into it, patch with markup
+-- that says what it said before, and answer with what the entry says.
+typingInto :: Bool -> IO Text
+typingInto held = do
+  let markup = entrySaying held "hello"
+  state <- runUI (create markup)
+  entry <- runUI (Gtk.unsafeCastTo Gtk.Entry =<< someStateWidget state)
+  -- What typing does.
+  runUI $ do
+    buffer <- Gtk.entryGetBuffer entry
+    Gtk.entryBufferSetText buffer "hello world" (-1)
+  _ <- runUI (patch' state markup markup)
+  runUI (Gtk.get entry #text)
+
+-- | A held property is applied when the widget is built, like any
+-- other.
+prop_a_held_property_is_set_when_the_widget_is_built =
+  withTests 1 . property $ do
+    said <- evalIO $ do
+      state <- runUI (create (entrySaying True "hello"))
+      entry <- runUI (Gtk.unsafeCastTo Gtk.Entry =<< someStateWidget state)
+      runUI (Gtk.get entry #text)
+    said === "hello"
+
+-- | A held property still follows the markup when the markup changes,
+-- which is the ordinary case and must not be broken by the reading.
+prop_a_held_property_follows_the_markup = withTests 1 . property $ do
+  said <- evalIO $ do
+    let first  = entrySaying True "hello"
+        second = entrySaying True "goodbye"
+    state <- runUI (create first)
+    entry <- runUI (Gtk.unsafeCastTo Gtk.Entry =<< someStateWidget state)
+    _     <- runUI (patch' state first second)
+    runUI (Gtk.get entry #text)
+  said === "goodbye"
+
+-- | A switch is the other shape this happens to: somebody clicks it,
+-- and the state does not follow.
+prop_a_held_switch_is_put_back_after_a_click = withTests 1 . property $ do
+  active <- evalIO $ do
+    let markup = widget Gtk.Switch [holding #active True] :: Widget Inner
+    state  <- runUI (create markup)
+    switch <- runUI (Gtk.unsafeCastTo Gtk.Switch =<< someStateWidget state)
+    runUI (Gtk.switchSetActive switch False)
+    _ <- runUI (patch' state markup markup)
+    runUI (Gtk.switchGetActive switch)
+  active === True
+
+-- | A property can be held on a widget whose markup changes from one
+-- kind of property to the other, rather than the widget being built
+-- again.
+prop_holding_a_property_that_was_not_held_keeps_the_widget =
+  withTests 1 . property $ do
+    same <- evalIO $ do
+      let first  = entrySaying False "hello"
+          second = entrySaying True "hello"
+      state  <- runUI (create first)
+      before <- runUI (someStateWidget state)
+      _      <- runUI (patch' state first second)
+      after  <- runUI (someStateWidget state)
+      pure (before == after)
+    same === True
+
 -- * Handlers that are given the widget
 
 -- | An impure handler is given the widget it is on and answers in

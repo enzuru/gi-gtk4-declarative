@@ -188,10 +188,11 @@ instance Patchable (Bin parent) where
           oldCollectedProps = collectedProperties oldCollected
           newCollectedProps = collectedProperties newCollected
         in
-          if oldCollectedProps `canBeModifiedTo` newCollectedProps
+          if oldCollected `canBeModifiedTo` newCollected
             then Modify $ do
               binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
               updateProperties binWidget oldCollectedProps newCollectedProps
+              updateHeldProperties binWidget (collectedHeld newCollected)
               updateClasses binWidget
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)

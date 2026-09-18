@@ -123,7 +123,7 @@ instance
             newCollected      = collectAttributes newAttributes
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
-        in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+        in  if oldCollected `canBeModifiedTo` newCollected
               then Modify $ do
                 containerWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
                 updateProperties containerWidget

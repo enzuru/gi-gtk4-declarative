@@ -27,6 +27,7 @@ module GI.Gtk.Declarative.Attributes
   , slot
   , reference
   -- * Collecting attributes
+  , holding
   , collectAttributes
   , collectSlots
   -- * Event Handling
@@ -81,6 +82,19 @@ data Attribute widget event where
       , Typeable setValue
       )
    => GI.AttrLabelProxy (attr :: Symbol) -> setValue -> Attribute widget event
+  -- | A property the widget is held to. Use the 'holding' function
+  -- instead of this constructor directly.
+  Holding
+    ::(GI.AttrOpAllowed 'GI.AttrConstruct info widget
+      , GI.AttrOpAllowed 'GI.AttrSet info widget
+      , GI.AttrGetC info widget attr value
+      , GI.AttrSetTypeConstraint info value
+      , KnownSymbol attr
+      , Typeable attr
+      , Eq value
+      , Typeable value
+      )
+   => GI.AttrLabelProxy (attr :: Symbol) -> value -> Attribute widget event
   -- | Defines a set of CSS classes for the underlying widget's style context.
   -- Use the 'classes' function instead of this constructor directly.
   Classes
@@ -168,6 +182,7 @@ data Attribute widget event where
 instance Functor (Attribute widget) where
   fmap f = \case
     attr := value            -> attr := value
+    Holding attr value       -> Holding attr value
     Classes cs               -> Classes cs
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
     OnSignalImpure signal eh -> OnSignalImpure signal (fmap f eh)
@@ -177,6 +192,49 @@ instance Functor (Attribute widget) where
     OnControllerPure new signal eh -> OnControllerPure new signal (fmap f eh)
     OnControllerImpure new signal eh ->
       OnControllerImpure new signal (fmap f eh)
+
+-- | Declare a property that the widget must not drift from.
+--
+-- An ordinary property is compared with what the markup said last
+-- time, and set when the two differ. That is enough for a property
+-- only the program changes. It is not enough for one a person changes:
+--
+-- @
+-- widget Gtk.Entry [holding #text (query state), on #changed Typed]
+-- @
+--
+-- Somebody types, so the entry says something the state does not. The
+-- next render declares what it declared before, an ordinary property
+-- finds nothing to do, and the entry keeps the typing: what is on the
+-- screen and what the program believes are two different things from
+-- then on, silently. A property declared with 'holding' is read back
+-- off the widget instead, and set whenever the two disagree.
+--
+-- These are the properties this happens to, and the list is short:
+-- @#text@ on an entry and an entry row, @#active@ on a switch, a switch
+-- row, a check button and a toggle button, and @#value@ on a range and
+-- a spin row. A choice of one out of several is
+-- @GI.Gtk.Declarative.Adwaita.ToggleGroup@, which holds itself.
+--
+-- It costs a read of the property on every patch, so it is asked for
+-- rather than assumed. The value read and the value declared are one
+-- type, which rules out a property whose getter answers @Maybe@ where
+-- its setter takes a bare value. No property a person changes is
+-- shaped like that.
+holding
+  :: ( GI.AttrOpAllowed 'GI.AttrConstruct info widget
+     , GI.AttrOpAllowed 'GI.AttrSet info widget
+     , GI.AttrGetC info widget attr value
+     , GI.AttrSetTypeConstraint info value
+     , KnownSymbol attr
+     , Typeable attr
+     , Eq value
+     , Typeable value
+     )
+  => GI.AttrLabelProxy (attr :: Symbol)
+  -> value
+  -> Attribute widget event
+holding = Holding
 
 -- | Define the CSS classes for the underlying widget's style context. For these
 -- classes to have any effect, this requires a 'Gtk.CssProvider' with CSS files
@@ -352,6 +410,12 @@ collectAttributes = foldl' go mempty
     -> Attribute widget event
     -> Collected widget event
   go Collected {..} = \case
+    Holding attr value -> Collected
+      { collectedHeld = HashMap.insert (T.pack (symbolVal attr))
+                                       (HeldProperty attr value)
+                                       collectedHeld
+      , ..
+      }
     attr := value -> Collected
       { collectedProperties = HashMap.insert (T.pack (symbolVal attr))
                                              (CollectedProperty attr value)
