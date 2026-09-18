@@ -11,11 +11,14 @@ module GI.Gtk.Declarative.Attributes.Collected
   ( ClassSet
   , CollectedProperty(..)
   , CollectedProperties
+  , HeldProperty(..)
+  , HeldProperties
   , Collected(..)
   , canBeModifiedTo
   , constructProperties
   , constructPropertiesOf
   , updateProperties
+  , updateHeldProperties
   , updateClasses
   )
 where
@@ -55,12 +58,42 @@ data CollectedProperty widget where
 -- differences in old and new property sets when patching.
 type CollectedProperties widget = HashMap Text (CollectedProperty widget)
 
+-- | A property the widget is held to: one that is read back off the
+-- widget and set again whenever the two disagree.
+--
+-- The value that is read and the value the markup declares are one
+-- type here, which is what lets them be compared. An ordinary
+-- property has no such constraint, because it is never read.
+data HeldProperty widget where
+  HeldProperty ::( GI.AttrOpAllowed 'GI.AttrConstruct info widget,
+      GI.AttrOpAllowed 'GI.AttrSet info widget,
+      GI.AttrGetC info widget attr value,
+      GI.AttrSetTypeConstraint info value,
+      KnownSymbol attr,
+      Typeable attr,
+      Eq value,
+      Typeable value
+    ) =>
+    GI.AttrLabelProxy attr ->
+    value ->
+    HeldProperty widget
+
+type HeldProperties widget = HashMap Text (HeldProperty widget)
+
 -- | Checks if the 'old' collected properties are a subset of the 'new' ones,
 -- and thus if a widget thus be updated or if it has to be recreated.
-canBeModifiedTo
-  :: CollectedProperties widget -> CollectedProperties widget -> Bool
-old `canBeModifiedTo` new = Set.fromList (HashMap.keys old)
-  `Set.isSubsetOf` Set.fromList (HashMap.keys new)
+--
+-- A property the widget is held to counts here as any other property
+-- does, so that a property which changes from one kind to the other
+-- goes on being set rather than starting a new widget.
+canBeModifiedTo :: Collected widget e1 -> Collected widget e2 -> Bool
+old `canBeModifiedTo` new =
+  keysOf old `Set.isSubsetOf` keysOf new
+ where
+  keysOf collected = Set.fromList
+    (HashMap.keys (collectedProperties collected)
+    <> HashMap.keys (collectedHeld collected)
+    )
 
 -- | All the collected properties and classes for a widget. These are based
 -- on the 'Attribute' list in the declarative markup, but collected separately
@@ -68,21 +101,30 @@ old `canBeModifiedTo` new = Set.fromList (HashMap.keys old)
 data Collected widget event
   = Collected
       { collectedClasses :: ClassSet,
-        collectedProperties :: CollectedProperties widget
+        collectedProperties :: CollectedProperties widget,
+        collectedHeld :: HeldProperties widget
       }
 
 instance Semigroup (Collected widget event) where
   c1 <> c2 = Collected (collectedClasses c1 <> collectedClasses c2)
                        (collectedProperties c1 <> collectedProperties c2)
+                       (collectedHeld c1 <> collectedHeld c2)
 
 instance Monoid (Collected widget event) where
-  mempty = Collected mempty mempty
+  mempty = Collected mempty mempty mempty
 
 -- | Create a list of GTK construct operations based on collected
 -- properties, used when creating new widgets.
 constructProperties
-  :: Collected widget event -> [GI.AttrOp widget 'GI.AttrConstruct]
-constructProperties = constructPropertiesOf . collectedProperties
+  :: forall widget event
+   . Collected widget event
+  -> [GI.AttrOp widget 'GI.AttrConstruct]
+constructProperties collected =
+  constructPropertiesOf (collectedProperties collected)
+    <> map heldConstructOp (HashMap.elems (collectedHeld collected))
+ where
+  heldConstructOp :: HeldProperty widget -> GI.AttrOp widget 'GI.AttrConstruct
+  heldConstructOp (HeldProperty attr value) = attr Gtk.:= value
 
 -- | As 'constructProperties', for a subset of a widget's properties.
 constructPropertiesOf
@@ -115,6 +157,24 @@ updateProperties (widget' :: widget) oldProps newProps = do
     = case eqT @t1 @t2 of
       Just Refl | v1 /= v2 -> pure (attr Gtk.:= v2)
       _                    -> mempty
+
+-- | Set the properties the widget is held to, wherever the widget has
+-- drifted from what the markup says.
+--
+-- This is the one place in the library that reads a property back. A
+-- property is otherwise compared with what the markup said last time,
+-- which is enough until somebody else changes the widget: a person
+-- typing in an entry, or clicking a switch. The markup then says what
+-- it said before, the comparison finds nothing to do, and what is on
+-- the screen is not what the program thinks is there.
+updateHeldProperties
+  :: forall widget . widget -> HeldProperties widget -> IO ()
+updateHeldProperties widget' held = mapM_ hold (HashMap.elems held)
+ where
+  hold :: HeldProperty widget -> IO ()
+  hold (HeldProperty attr value) = do
+    current <- GI.get widget' attr
+    if current /= value then GI.set widget' [attr Gtk.:= value] else pure ()
 
 -- | Update the widget's CSS classes to only include the new set of
 -- classes (last argument).

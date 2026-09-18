@@ -42,6 +42,49 @@ container ListBox [ #selectionMode := SelectionModeMultiple ]
 
 [gi-gtk]: https://hackage.haskell.org/package/gi-gtk
 
+## Properties a person can change
+
+A property declared with `:=` is compared with what the markup said
+last time, and set when the two differ. That is enough for a property
+only the program changes. It is not enough for one a person changes.
+
+Take an entry whose text comes from the state:
+
+``` haskell
+widget Entry [#text := query state, on #changed Typed]
+```
+
+Somebody types. The entry now says something the state does not. The
+update declines the change, or corrects it, or is slow, and the next
+render declares what it declared before. The declared value has not
+changed, so nothing is set, and the entry keeps the typing. What is on
+the screen and what the program believes are two different things from
+then on, and nothing is thrown, logged or otherwise said about it.
+
+Declare such a property with `holding` instead. It is read back off the
+widget and set whenever the two disagree:
+
+``` haskell
+widget Entry [holding #text (query state), on #changed Typed]
+```
+
+These are the properties this happens to, and the list is short:
+
+- `#text`, on an entry and an entry row
+- `#active`, on a switch, a switch row, a check button and a toggle
+  button
+- `#value`, on a range and a spin row
+
+A choice of one out of several is
+`GI.Gtk.Declarative.Adwaita.ToggleGroup`, which holds itself and needs
+nothing here.
+
+`holding` costs a read of the property on every patch, which is why it
+is asked for rather than assumed. The value read and the value declared
+have to be one type, so a property whose getter answers `Maybe` where
+its setter takes a bare value cannot be held. No property a person
+changes is shaped like that.
+
 ## Widget-Valued Properties
 
 Some properties hold another widget rather than a value: a window's

@@ -253,11 +253,12 @@ instance Patchable TabView where
             newCollected      = collectAttributes newAttributes
             oldCollectedProps = collectedProperties oldCollected
             newCollectedProps = collectedProperties newCollected
-        in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+        in  if oldCollected `canBeModifiedTo` newCollected
               then Modify $ do
                 let view  = stateTreeWidget top
                     state = stateTreeCustomState top
                 updateProperties view oldCollectedProps newCollectedProps
+                updateHeldProperties view (collectedHeld newCollected)
                 updateClasses view
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

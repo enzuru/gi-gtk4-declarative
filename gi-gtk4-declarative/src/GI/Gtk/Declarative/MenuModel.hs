@@ -278,10 +278,11 @@ instance Patchable (MenuWidget widget) where
             newCollectedProps = collectedProperties newCollected
             oldState          = stateTreeCustomState top
             newShape          = menuShapeOf newItems
-        in  if oldCollectedProps `canBeModifiedTo` newCollectedProps
+        in  if oldCollected `canBeModifiedTo` newCollected
               then Modify $ do
                 let widget' = stateTreeWidget top
                 updateProperties widget' oldCollectedProps newCollectedProps
+                updateHeldProperties widget' (collectedHeld newCollected)
                 updateClasses widget'
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

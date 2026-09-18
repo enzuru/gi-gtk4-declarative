@@ -78,6 +78,9 @@ instance
     (widget, internalState) <- customCreate custom (customParams custom)
     let collected = collectAttributes (customAttributes custom)
     updateProperties widget mempty (collectedProperties collected)
+    -- A custom widget is built by its own action rather than from the
+    -- construct properties, so what it is held to is set here.
+    updateHeldProperties widget (collectedHeld collected)
     updateClasses widget mempty (collectedClasses collected)
     slots <- createSlots widget (customAttributes custom)
     resolveReferences widget (customAttributes custom)
@@ -95,7 +98,7 @@ instance
           newCollected = collectAttributes (customAttributes new)
           oldCollectedProps = collectedProperties oldCollected
           newCollectedProps = collectedProperties newCollected
-          canBeModified = oldCollectedProps `canBeModifiedTo` newCollectedProps
+          canBeModified = oldCollected `canBeModifiedTo` newCollected
         in
           case
             customPatch new
@@ -108,6 +111,7 @@ instance
               | canBeModified -> Modify $ do
                 let widget' = stateTreeNodeWidget stateTree
                 updateProperties widget' oldCollectedProps newCollectedProps
+                updateHeldProperties widget' (collectedHeld newCollected)
                 updateClasses widget'
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

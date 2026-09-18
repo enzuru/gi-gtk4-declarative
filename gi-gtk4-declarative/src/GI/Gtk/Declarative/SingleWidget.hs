@@ -62,10 +62,11 @@ instance Patchable (SingleWidget widget) where
           oldCollectedProps = collectedProperties oldCollected
           newCollectedProps = collectedProperties newCollected
         in
-          if oldCollectedProps `canBeModifiedTo` newCollectedProps
+          if oldCollected `canBeModifiedTo` newCollected
             then Modify $ do
               let w = stateTreeWidget top
               updateProperties w oldCollectedProps newCollectedProps
+              updateHeldProperties w (collectedHeld newCollected)
               updateClasses w
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)
