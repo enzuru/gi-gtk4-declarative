@@ -192,7 +192,7 @@ instance Patchable (Bin parent) where
             then Modify $ do
               binWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
               updateProperties binWidget oldCollectedProps newCollectedProps
-              updateHeldProperties binWidget (collectedHeld newCollected)
+              updateOtherProperties binWidget oldCollected newCollected
               updateClasses binWidget
                             (collectedClasses oldCollected)
                             (collectedClasses newCollected)

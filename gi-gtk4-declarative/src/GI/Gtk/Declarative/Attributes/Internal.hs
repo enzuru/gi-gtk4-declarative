@@ -393,10 +393,25 @@ resolveReferences widget' attributes = for_ attributes $ \attribute ->
 -- | Look through the widgets under this one's root for one with this
 -- name. A widget with no name of its own answers with the name of its
 -- class, so a name to point at is best made a distinctive one.
+-- | The widget with this name, looked for below the widget that is
+-- pointing at it, and then below the whole tree it is in.
+--
+-- The near half is what makes a reference to a widget's own descendant
+-- cheap: a list box naming one of its rows searches the rows rather
+-- than the window. The far half is what makes a reference to a widget
+-- somewhere else work at all.
+--
+-- Two widgets under one name are the caller's mistake either way, and
+-- the near one now wins.
 findNamed :: Gtk.IsWidget widget => widget -> Text -> IO (Maybe Gtk.Widget)
 findNamed widget' name = do
-  root <- topmost =<< Gtk.toWidget widget'
-  search root
+  here <- Gtk.toWidget widget'
+  near <- search here
+  case near of
+    Just found -> pure (Just found)
+    Nothing    -> do
+      root <- topmost here
+      search root
  where
   topmost w = do
     parent <- Gtk.widgetGetParent w

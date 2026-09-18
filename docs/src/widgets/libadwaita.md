@@ -39,6 +39,44 @@ which GTK reports as a warning at run time rather than as an error. The
 instance calls `adw_application_window_set_content`, so this is a
 mistake a program using it does not make.
 
+## A window of two panes
+
+An `AdwNavigationSplitView` holds a sidebar and a content page, each of
+which is an `AdwNavigationPage`. Neither is a child: both are
+properties, so both are slots.
+
+``` haskell
+widget Adw.NavigationSplitView
+  [ splitViewSidebar (bin Adw.NavigationPage [#title := "Tools"] theList)
+  , splitViewContent (bin Adw.NavigationPage [#title := name] thePane)
+  ]
+```
+
+`AdwOverlaySplitView` is the same shape and takes plain widgets rather
+than pages, through `overlaySidebar` and `overlayContent`.
+
+## A dialog
+
+An `AdwDialog` is neither a child nor a property. It is presented over a
+widget, and it takes itself down again, so a view has nowhere to say
+which dialog is open. `presentedDialog` is that place:
+
+``` haskell
+bin Adw.ApplicationWindow
+  (  [#title := "Toolchains"]
+  <> foldMap (\open -> [presentedDialog (dialogFor state open)]) (dialog state)
+  )
+  content
+```
+
+The dialog lives the life of any other widget in a slot. It is created
+with the window, patched while it is open, so that what it shows follows
+the state, and subscribed to for its events. When the view stops naming
+a dialog, the slot is emptied, and emptying it closes the dialog.
+
+A dialog somebody closed with Escape is already gone, and the slot knows
+not to close it twice.
+
 ## A settings page
 
 A page of settings is an `AdwPreferencesGroup` holding rows:
@@ -61,6 +99,26 @@ list box.
 
 An `Adw.ActionRow` holds widgets at either end of itself, so it is a
 container, with `rowPrefix` and `rowSuffix` for the two ends.
+
+A program with more than one group puts them on an
+`Adw.PreferencesPage`, which is a container of groups, and pages go in
+an `Adw.PreferencesDialog`, which is a container of pages. Each takes
+what it takes and nothing else: a child of the wrong kind fails when the
+markup is rendered rather than becoming a warning from libadwaita
+afterwards.
+
+An `Adw.ExpanderRow` is a container of the rows it reveals. The switch
+in its header is a property a person changes and a program owns, so it
+wants `holding`:
+
+``` haskell
+container Adw.ExpanderRow
+  [ #title := "Nightlies"
+  , #showEnableSwitch := True
+  , holding #enableExpansion (nightlies state)
+  ]
+  [widget Adw.EntryRow [#title := "Metadata URL"]]
+```
 
 ## One choice out of a few
 

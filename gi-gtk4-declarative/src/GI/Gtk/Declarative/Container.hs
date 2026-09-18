@@ -124,7 +124,7 @@ instance
     -- and the ones that wait for its children, so what it is held to is
     -- set here rather than at construction, with the rest of the
     -- waiting ones.
-    updateHeldProperties widget' (collectedHeld collected)
+    updateOtherProperties widget' mempty collected
     runAfterCreated widget' attrs
     return
       (SomeState
@@ -185,8 +185,7 @@ instance
                     -- What the container is held to, after the children
                     -- are there, for the same reason as the deferred
                     -- properties above.
-                    updateHeldProperties containerWidget
-                                         (collectedHeld newCollected)
+                    updateOtherProperties containerWidget oldCollected newCollected
                     pure (SomeState patched)
                   else Replace (create new)
           _ -> Replace (create new)

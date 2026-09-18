@@ -258,7 +258,7 @@ instance Patchable TabView where
                 let view  = stateTreeWidget top
                     state = stateTreeCustomState top
                 updateProperties view oldCollectedProps newCollectedProps
-                updateHeldProperties view (collectedHeld newCollected)
+                updateOtherProperties view oldCollected newCollected
                 updateClasses view
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

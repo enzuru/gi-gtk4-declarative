@@ -79,6 +79,69 @@ headerSuffix
 headerSuffix = slot "header-suffix" Adw.preferencesGroupSetHeaderSuffix
 
 --
+-- The page a group goes on, and the dialog a page goes in
+--
+
+-- | A page of preferences groups.
+--
+-- A page takes groups and nothing else. A child that is not one fails
+-- the cast here, rather than becoming a warning from libadwaita when
+-- the page is shown.
+instance ToChildren Adw.PreferencesPage Vector Widget
+
+instance IsContainer Adw.PreferencesPage Widget where
+  appendChild page _ widget' =
+    Adw.preferencesPageAdd page =<< asGroup widget'
+  replaceChild page child' _index old new = do
+    removeChild page old
+    appendChild page child' new
+  removeChild page widget' = Adw.preferencesPageRemove page =<< asGroup widget'
+
+asGroup :: Gtk.Widget -> IO Adw.PreferencesGroup
+asGroup = Gtk.unsafeCastTo Adw.PreferencesGroup
+
+-- | A dialog of preferences pages, which takes pages and nothing else.
+instance ToChildren Adw.PreferencesDialog Vector Widget
+
+instance IsContainer Adw.PreferencesDialog Widget where
+  appendChild dialog _ widget' =
+    Adw.preferencesDialogAdd dialog =<< asPage widget'
+  replaceChild dialog child' _index old new = do
+    removeChild dialog old
+    appendChild dialog child' new
+  removeChild dialog widget' =
+    Adw.preferencesDialogRemove dialog =<< asPage widget'
+
+asPage :: Gtk.Widget -> IO Adw.PreferencesPage
+asPage = Gtk.unsafeCastTo Adw.PreferencesPage
+
+--
+-- The expander row
+--
+
+-- | A row that reveals rows of its own.
+--
+-- The switch in its header is @#enableExpansion@, which is a property
+-- a person changes and a program owns, so it wants
+-- 'GI.Gtk.Declarative.Attributes.holding':
+--
+-- @
+-- container Adw.ExpanderRow
+--   [#title := "Nightlies", #showEnableSwitch := True
+--   , holding #enableExpansion (nightlies state)
+--   ]
+--   [widget Adw.EntryRow [#title := "Metadata URL"]]
+-- @
+instance ToChildren Adw.ExpanderRow Vector Widget
+
+instance IsContainer Adw.ExpanderRow Widget where
+  appendChild row _ widget' = Adw.expanderRowAddRow row widget'
+  replaceChild row child' _index old new = do
+    removeChild row old
+    appendChild row child' new
+  removeChild = Adw.expanderRowRemove
+
+--
 -- The action row
 --
 

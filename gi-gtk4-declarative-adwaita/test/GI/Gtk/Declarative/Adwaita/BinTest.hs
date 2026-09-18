@@ -98,6 +98,7 @@ cases =
   , binCase "Dialog"            Adw.Dialog
   , binCase "ToolbarView"       Adw.ToolbarView
   , binCase "TabOverview"       Adw.TabOverview
+  , binCase "NavigationPage"    Adw.NavigationPage
   ]
 
 prop_every_bin_holds_the_child_it_was_given = withTests 1 . property $ do
@@ -212,6 +213,138 @@ prop_a_replaced_bar_leaves_nothing_behind = withTests 1 . property $ do
     ]
     descendantLabels
   labels === ["content", "a button"]
+
+-- * The two pages of a split view
+
+-- | A navigation split view holds its sidebar and its content in
+-- properties rather than as children, and each has to be a page.
+prop_a_split_view_holds_its_two_pages = withTests 1 . property $ do
+  (sidebar, content) <- evalIO $ render
+    [ widget
+        Adw.NavigationSplitView
+        [ splitViewSidebar (bin Adw.NavigationPage
+                                [#title := ("Tools" :: Text)]
+                                (label "the list"))
+        , splitViewContent (bin Adw.NavigationPage
+                                [#title := ("GHC" :: Text)]
+                                (label "the pane"))
+        ]
+    ]
+    (\view -> do
+      split    <- Gtk.unsafeCastTo Adw.NavigationSplitView view
+      sidebar' <- Adw.navigationSplitViewGetSidebar split
+      content' <- Adw.navigationSplitViewGetContent split
+      (,)
+        <$> traverse Adw.navigationPageGetTitle sidebar'
+        <*> traverse Adw.navigationPageGetTitle content'
+    )
+  sidebar === Just "Tools"
+  content === Just "GHC"
+
+-- | The page in a slot is patched where it stands, like any other
+-- widget in a slot.
+prop_a_split_view_page_is_patched = withTests 1 . property $ do
+  title <- evalIO $ render
+    [ widget Adw.NavigationSplitView [splitViewSidebar (page "Tools")]
+    , widget Adw.NavigationSplitView [splitViewSidebar (page "Toolchains")]
+    ]
+    (\view -> do
+      split <- Gtk.unsafeCastTo Adw.NavigationSplitView view
+      traverse Adw.navigationPageGetTitle
+        =<< Adw.navigationSplitViewGetSidebar split
+    )
+  title === Just "Toolchains"
+ where
+  page :: Text -> Widget ()
+  page t = bin Adw.NavigationPage [#title := t] (label "body")
+
+-- | An overlay split view is the same shape and takes plain widgets.
+prop_an_overlay_split_view_holds_its_two_sides = withTests 1 . property $ do
+  (sidebar, content) <- evalIO $ render
+    [ widget
+        Adw.OverlaySplitView
+        [overlaySidebar (label "beside"), overlayContent (label "the rest")]
+    ]
+    (\view -> do
+      split    <- Gtk.unsafeCastTo Adw.OverlaySplitView view
+      sidebar' <- Adw.overlaySplitViewGetSidebar split
+      content' <- Adw.overlaySplitViewGetContent split
+      (,) <$> traverse labelOf sidebar' <*> traverse labelOf content'
+    )
+  sidebar === Just "beside"
+  content === Just "the rest"
+
+-- * The dialog a widget is showing
+
+dialogSaying :: Text -> Widget ()
+dialogSaying text = bin Adw.Dialog [#title := text] (label text)
+
+-- | A dialog is neither a child nor a property, so a view says which
+-- one is open through a slot. Presenting it is what the slot does.
+prop_a_window_presents_the_dialog_in_its_slot = withTests 1 . property $ do
+  titles <- evalIO $ render
+    [ bin Adw.ApplicationWindow
+          [presentedDialog (dialogSaying "Preferences")]
+          (label "the window")
+    ]
+    dialogTitles
+  titles === ["Preferences"]
+
+-- | The dialog is patched while it is open, so what it shows follows
+-- the state.
+prop_a_presented_dialog_is_patched_where_it_stands =
+  withTests 1 . property $ do
+    titles <- evalIO $ render
+      [ bin Adw.ApplicationWindow
+            [presentedDialog (dialogSaying "Preferences")]
+            (label "the window")
+      , bin Adw.ApplicationWindow
+            [presentedDialog (dialogSaying "Options")]
+            (label "the window")
+      ]
+      dialogTitles
+    titles === ["Options"]
+
+-- | A view that stops naming a dialog closes it.
+prop_a_dialog_closes_when_the_slot_is_emptied = withTests 1 . property $ do
+  titles <- evalIO $ render
+    [ bin Adw.ApplicationWindow
+          [presentedDialog (dialogSaying "Preferences")]
+          (label "the window")
+    , bin Adw.ApplicationWindow [] (label "the window")
+    ]
+    dialogTitles
+  titles === []
+
+-- | The case a program reaches every time somebody presses Escape: the
+-- dialog is gone before the view says so. Closing it again is a
+-- warning from libadwaita, which this suite now treats as a failure.
+prop_a_dialog_the_user_closed_is_let_alone = withTests 1 . property $ do
+  titles <- evalIO $ do
+    let opened =
+          bin Adw.ApplicationWindow
+              [presentedDialog (dialogSaying "Preferences")]
+              (label "the window") :: Widget ()
+        closed = bin Adw.ApplicationWindow [] (label "the window")
+    state   <- runUI (create opened)
+    window  <- runUI (someStateWidget state)
+    -- What Escape does.
+    runUI $ do
+      dialogs <- dialogsBelow window
+      mapM_ Adw.dialogForceClose dialogs
+    _ <- runUI (patch' state opened closed)
+    runUI (dialogTitles window)
+  titles === []
+
+-- | The titles of the dialogs a widget is showing.
+dialogTitles :: Gtk.Widget -> IO [Text]
+dialogTitles root = traverse Adw.dialogGetTitle =<< dialogsBelow root
+
+dialogsBelow :: Gtk.Widget -> IO [Adw.Dialog]
+dialogsBelow root = do
+  widgets <- descendants root
+  found   <- traverse (Gtk.castTo Adw.Dialog) widgets
+  pure (foldr (\x xs -> maybe xs (: xs) x) [] found)
 
 tests :: IO Bool
 tests = checkParallel $$(discover)

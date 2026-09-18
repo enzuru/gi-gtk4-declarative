@@ -28,6 +28,11 @@ module GI.Gtk.Declarative.Adwaita.Slots
   ( toolbarTopBar
   , toolbarBottomBar
   , titleWidget
+  , splitViewSidebar
+  , splitViewContent
+  , overlaySidebar
+  , overlayContent
+  , presentedDialog
   )
 where
 
@@ -72,6 +77,113 @@ titleWidget
   => Widget event
   -> Attribute widget event
 titleWidget = slot "title-widget" Adw.headerBarSetTitleWidget
+
+-- | The sidebar page of an @AdwNavigationSplitView@, which is the
+-- widget a window of two panes is usually built from.
+--
+-- The widget in this slot has to be an @AdwNavigationPage@, which is
+-- checked when the view is rendered.
+splitViewSidebar
+  :: (Adw.IsNavigationSplitView widget, Gtk.IsWidget widget)
+  => Widget event
+  -> Attribute widget event
+splitViewSidebar =
+  slot "sidebar" (setPage Adw.navigationSplitViewSetSidebar)
+
+-- | The content page of an @AdwNavigationSplitView@, beside the
+-- sidebar. It has to be an @AdwNavigationPage@ as well.
+splitViewContent
+  :: (Adw.IsNavigationSplitView widget, Gtk.IsWidget widget)
+  => Widget event
+  -> Attribute widget event
+splitViewContent =
+  slot "content" (setPage Adw.navigationSplitViewSetContent)
+
+-- | The sidebar of an @AdwOverlaySplitView@, which is the same shape
+-- as a navigation split view and takes any widget rather than a page.
+overlaySidebar
+  :: (Adw.IsOverlaySplitView widget, Gtk.IsWidget widget)
+  => Widget event
+  -> Attribute widget event
+overlaySidebar = slot "sidebar" Adw.overlaySplitViewSetSidebar
+
+-- | The content of an @AdwOverlaySplitView@, beside its sidebar.
+overlayContent
+  :: (Adw.IsOverlaySplitView widget, Gtk.IsWidget widget)
+  => Widget event
+  -> Attribute widget event
+overlayContent = slot "content" Adw.overlaySplitViewSetContent
+
+-- | The dialog this widget is showing, if it is showing one.
+--
+-- An @AdwDialog@ is neither a child nor a property: it is presented
+-- over a widget with @adw_dialog_present@, and it takes itself down
+-- again. So a view has nowhere to say which dialog is open, and a
+-- program that wants to say it reaches past this library and keeps the
+-- dialog by hand. This is that place:
+--
+-- @
+-- bin Adw.ApplicationWindow
+--   (  [#title := "Toolchains"]
+--   <> foldMap (\open -> [presentedDialog (dialogFor state open)]) (dialog state)
+--   )
+--   content
+-- @
+--
+-- The dialog in the slot lives the life of any other widget in a slot.
+-- It is created with the window, patched while it is open, so that its
+-- contents follow the state, and subscribed to for its events. When
+-- the view stops naming a dialog, the slot is emptied, and emptying it
+-- closes the dialog.
+--
+-- A dialog somebody closed with Escape is already gone, so closing it
+-- again would be a warning. This asks the dialog whether it still has
+-- a parent before it says anything to it.
+--
+-- The widget in the slot has to be an @AdwDialog@, which is checked
+-- when it is rendered. The widget the slot is on can be any widget in
+-- a window, which is what @adw_dialog_present@ takes.
+presentedDialog
+  :: Gtk.IsWidget widget => Widget event -> Attribute widget event
+presentedDialog = slot dialogKey setDialog
+
+dialogKey :: Text
+dialogKey = "gi-gtk4-declarative-presented-dialog"
+
+-- | Present a dialog over a widget, in place of the dialog that is
+-- there.
+--
+-- A dialog is not the widget's child, so the widget is told which one
+-- it last presented, with @g_object_set_data@, as a toolbar view is
+-- told about its bars.
+setDialog :: Gtk.IsWidget widget => widget -> Maybe Gtk.Widget -> IO ()
+setDialog widget' newDialog = do
+  parent   <- Gtk.toWidget widget'
+  previous <- GI.objectGetData parent dialogKey
+  when (previous /= nullPtr) $ do
+    old <- newObject Adw.Dialog (castPtr previous :: Ptr Adw.Dialog)
+    GI.objectSetData parent dialogKey nullPtr
+    -- A dialog somebody closed already has no parent, and asking it to
+    -- close again is a warning worth not causing.
+    stillOpen <- Gtk.widgetGetParent old
+    for_ stillOpen $ \_ -> Adw.dialogForceClose old
+  for_ newDialog $ \child -> do
+    dialog <- Gtk.unsafeCastTo Adw.Dialog child
+    withManagedPtr dialog
+      $ \ptr -> GI.objectSetData parent dialogKey (castPtr ptr)
+    Adw.dialogPresent dialog (Just parent)
+
+-- | Put a widget in a property that holds a navigation page, casting
+-- it on the way. A widget that is not a page is a failure here rather
+-- than a warning from libadwaita afterwards.
+setPage
+  :: (view -> Maybe Adw.NavigationPage -> IO ())
+  -> view
+  -> Maybe Gtk.Widget
+  -> IO ()
+setPage set view child = do
+  page <- traverse (Gtk.unsafeCastTo Adw.NavigationPage) child
+  set view page
 
 topBarKey :: Text
 topBarKey = "gi-gtk4-declarative-top-bar"

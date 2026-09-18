@@ -215,7 +215,7 @@ instance Patchable ToggleGroup where
                 let group = stateTreeWidget top
                     state = stateTreeCustomState top
                 updateProperties group oldCollectedProps newCollectedProps
-                updateHeldProperties group (collectedHeld newCollected)
+                updateOtherProperties group oldCollected newCollected
                 updateClasses group
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)
@@ -307,14 +307,20 @@ applyToggles group state wanted = do
 newToggle :: Adw.ToggleGroup -> Toggle -> IO (Maybe (Text, Adw.Toggle))
 newToggle group spec = do
   made <- Gtk.new Adw.Toggle []
+  -- The name is the toggle's identity and is set here alone. Setting
+  -- it again on a toggle that is already in a group is a duplicate as
+  -- far as libadwaita is concerned, even when the duplicate is the
+  -- toggle itself.
+  Adw.toggleSetName made (Just (toggleName spec))
   applyToggle spec made
   Adw.toggleGroupAdd group made
   found <- Adw.toggleGroupGetToggleByName group (toggleName spec)
   pure (fmap ((,) (toggleName spec)) found)
 
+-- | Everything about a toggle except its name, which never changes in
+-- place.
 applyToggle :: Toggle -> Adw.Toggle -> IO ()
 applyToggle spec made = do
-  Adw.toggleSetName made (Just (toggleName spec))
   Adw.toggleSetLabel made (toggleLabel spec)
   Adw.toggleSetIconName made (toggleIconName spec)
   for_ (toggleTooltip spec) (Adw.toggleSetTooltip made)

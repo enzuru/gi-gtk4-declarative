@@ -13,12 +13,14 @@ module GI.Gtk.Declarative.Attributes.Collected
   , CollectedProperties
   , HeldProperty(..)
   , HeldProperties
+  , MaybeProperty(..)
+  , MaybeProperties
   , Collected(..)
   , canBeModifiedTo
   , constructProperties
   , constructPropertiesOf
   , updateProperties
-  , updateHeldProperties
+  , updateOtherProperties
   , updateClasses
   )
 where
@@ -80,6 +82,27 @@ data HeldProperty widget where
 
 type HeldProperties widget = HashMap Text (HeldProperty widget)
 
+-- | A property that can be unset, and the value it has or has not.
+--
+-- Dropping a property from the attribute list builds the widget again,
+-- because most properties cannot be unset. One that can says so with
+-- 'Nothing' instead, and stays in the list.
+data MaybeProperty widget where
+  MaybeProperty ::( GI.AttrOpAllowed 'GI.AttrConstruct info widget,
+      GI.AttrOpAllowed 'GI.AttrSet info widget,
+      GI.AttrClearC info widget attr,
+      GI.AttrSetTypeConstraint info setValue,
+      KnownSymbol attr,
+      Typeable attr,
+      Eq setValue,
+      Typeable setValue
+    ) =>
+    GI.AttrLabelProxy attr ->
+    Maybe setValue ->
+    MaybeProperty widget
+
+type MaybeProperties widget = HashMap Text (MaybeProperty widget)
+
 -- | Checks if the 'old' collected properties are a subset of the 'new' ones,
 -- and thus if a widget thus be updated or if it has to be recreated.
 --
@@ -91,8 +114,9 @@ old `canBeModifiedTo` new =
   keysOf old `Set.isSubsetOf` keysOf new
  where
   keysOf collected = Set.fromList
-    (HashMap.keys (collectedProperties collected)
+    (  HashMap.keys (collectedProperties collected)
     <> HashMap.keys (collectedHeld collected)
+    <> HashMap.keys (collectedMaybe collected)
     )
 
 -- | All the collected properties and classes for a widget. These are based
@@ -102,16 +126,18 @@ data Collected widget event
   = Collected
       { collectedClasses :: ClassSet,
         collectedProperties :: CollectedProperties widget,
-        collectedHeld :: HeldProperties widget
+        collectedHeld :: HeldProperties widget,
+        collectedMaybe :: MaybeProperties widget
       }
 
 instance Semigroup (Collected widget event) where
   c1 <> c2 = Collected (collectedClasses c1 <> collectedClasses c2)
                        (collectedProperties c1 <> collectedProperties c2)
                        (collectedHeld c1 <> collectedHeld c2)
+                       (collectedMaybe c1 <> collectedMaybe c2)
 
 instance Monoid (Collected widget event) where
-  mempty = Collected mempty mempty mempty
+  mempty = Collected mempty mempty mempty mempty
 
 -- | Create a list of GTK construct operations based on collected
 -- properties, used when creating new widgets.
@@ -122,9 +148,16 @@ constructProperties
 constructProperties collected =
   constructPropertiesOf (collectedProperties collected)
     <> map heldConstructOp (HashMap.elems (collectedHeld collected))
+    <> concatMap maybeConstructOp (HashMap.elems (collectedMaybe collected))
  where
   heldConstructOp :: HeldProperty widget -> GI.AttrOp widget 'GI.AttrConstruct
   heldConstructOp (HeldProperty attr value) = attr Gtk.:= value
+  -- A property that is not set is the widget's own default, which for
+  -- a property that can be unset is the unset one.
+  maybeConstructOp
+    :: MaybeProperty widget -> [GI.AttrOp widget 'GI.AttrConstruct]
+  maybeConstructOp (MaybeProperty attr value) =
+    maybe [] (\v -> [attr Gtk.:= v]) value
 
 -- | As 'constructProperties', for a subset of a widget's properties.
 constructPropertiesOf
@@ -157,6 +190,44 @@ updateProperties (widget' :: widget) oldProps newProps = do
     = case eqT @t1 @t2 of
       Just Refl | v1 /= v2 -> pure (attr Gtk.:= v2)
       _                    -> mempty
+
+-- | Apply the properties that need more than a comparison of what the
+-- markup said: the ones the widget is held to, and the ones that can
+-- be unset.
+--
+-- Every widget calls this where it calls 'updateProperties', and one
+-- call rather than two is deliberate: a widget that forgets it forgets
+-- both, silently, which is how a container came to drop 'holding' on
+-- the floor once already.
+updateOtherProperties
+  :: widget -> Collected widget e1 -> Collected widget e2 -> IO ()
+updateOtherProperties widget' old new = do
+  updateHeldProperties widget' (collectedHeld new)
+  updateMaybeProperties widget' (collectedMaybe old) (collectedMaybe new)
+
+-- | Set or unset the properties that can be unset, wherever the markup
+-- says something else than it said last time.
+updateMaybeProperties
+  :: forall widget
+   . widget
+  -> MaybeProperties widget
+  -> MaybeProperties widget
+  -> IO ()
+updateMaybeProperties widget' old new = mapM_ apply
+                                              (HashMap.toList new)
+ where
+  apply :: (Text, MaybeProperty widget) -> IO ()
+  apply (key, property@(MaybeProperty attr value)) =
+    case HashMap.lookup key old of
+      Just before | same before property -> pure ()
+      _                                  -> case value of
+        Just set' -> GI.set widget' [attr Gtk.:= set']
+        Nothing   -> GI.clear widget' attr
+  same :: MaybeProperty widget -> MaybeProperty widget -> Bool
+  same (MaybeProperty _ (v1 :: Maybe t1)) (MaybeProperty _ (v2 :: Maybe t2)) =
+    case eqT @t1 @t2 of
+      Just Refl -> v1 == v2
+      Nothing   -> False
 
 -- | Set the properties the widget is held to, wherever the widget has
 -- drifted from what the markup says.
