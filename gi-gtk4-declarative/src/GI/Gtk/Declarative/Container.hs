@@ -23,6 +23,7 @@ import           Control.Monad                  ( forM
                                                 , unless
                                                 )
 import qualified Data.HashMap.Strict           as HashMap
+import           Data.Text                      ( Text )
 import           Data.Typeable
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
@@ -79,6 +80,21 @@ container
 container ctor attrs = fromWidget . Container ctor attrs . toChildren ctor
 
 --
+-- Deferred properties
+--
+
+-- | The properties that only take once the container has its children,
+-- and the ones that do not. A stack's @visibleChildName@ is the first
+-- kind: naming a child the container does not hold yet is a warning
+-- from GTK and then nothing.
+deferredProps, immediateProps
+  :: [Text] -> CollectedProperties widget -> CollectedProperties widget
+deferredProps deferred =
+  HashMap.filterWithKey (\name _ -> name `elem` deferred)
+immediateProps deferred =
+  HashMap.filterWithKey (\name _ -> name `notElem` deferred)
+
+--
 -- Patchable
 --
 
@@ -91,10 +107,8 @@ instance
     let collected = collectAttributes attrs
         deferred  = deferredProperties (Proxy :: Proxy w)
         properties = collectedProperties collected
-        later = HashMap.filterWithKey (\name _ -> name `elem` deferred)
-                                      properties
-        now   = HashMap.filterWithKey (\name _ -> name `notElem` deferred)
-                                      properties
+        later = deferredProps deferred properties
+        now   = immediateProps deferred properties
     widget' <- Gtk.new ctor (constructPropertiesOf now)
     updateClasses widget' mempty (collectedClasses collected)
     slots       <- createSlots widget' attrs
@@ -117,36 +131,55 @@ instance
   patch (SomeState (st :: StateTree stateType w1 c1 e1 cs)) (Container _ oldAttributes oldChildren) new@(Container (ctor :: Gtk.ManagedPtr
       w2
     -> w2) newAttributes (newChildren :: Children c2 e2))
-    = case (st, eqT @w1 @w2) of
-      (StateTreeContainer top childStates, Just Refl) ->
-        let oldCollected      = stateTreeCollectedAttributes top
-            newCollected      = collectAttributes newAttributes
-            oldCollectedProps = collectedProperties oldCollected
-            newCollectedProps = collectedProperties newCollected
-        in  if oldCollected `canBeModifiedTo` newCollected
-              then Modify $ do
-                containerWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
-                updateProperties containerWidget
-                                 oldCollectedProps
-                                 newCollectedProps
-                updateClasses containerWidget
-                              (collectedClasses oldCollected)
-                              (collectedClasses newCollected)
-                slots <- patchSlots containerWidget
-                                    (stateTreeSlots top)
-                                    oldAttributes
-                                    newAttributes
-                resolveReferences containerWidget newAttributes
-                let top' = top { stateTreeCollectedAttributes = newCollected
-                               , stateTreeSlots               = slots
-                               }
-                SomeState <$> patchInContainer
-                  (StateTreeContainer top' childStates)
-                  containerWidget
-                  (unChildren oldChildren)
-                  (unChildren newChildren)
-              else Replace (create new)
-      _ -> Replace (create new)
+    = let
+        -- Worked out here rather than below, because matching on the
+        -- state tree brings a second 'IsContainer' constraint into
+        -- scope, and GHC cannot then tell which of the two this
+        -- belongs to.
+        deferred = deferredProperties (Proxy :: Proxy w2)
+      in
+        case (st, eqT @w1 @w2) of
+          (StateTreeContainer top childStates, Just Refl) ->
+            let oldCollected      = stateTreeCollectedAttributes top
+                newCollected      = collectAttributes newAttributes
+                oldCollectedProps = collectedProperties oldCollected
+                newCollectedProps = collectedProperties newCollected
+            in  if oldCollected `canBeModifiedTo` newCollected
+                  then Modify $ do
+                    containerWidget <- Gtk.unsafeCastTo ctor (stateTreeWidget top)
+                    updateProperties containerWidget
+                                     (immediateProps deferred oldCollectedProps)
+                                     (immediateProps deferred newCollectedProps)
+                    updateClasses containerWidget
+                                  (collectedClasses oldCollected)
+                                  (collectedClasses newCollected)
+                    slots <- patchSlots containerWidget
+                                        (stateTreeSlots top)
+                                        oldAttributes
+                                        newAttributes
+                    resolveReferences containerWidget newAttributes
+                    let top' = top { stateTreeCollectedAttributes = newCollected
+                                   , stateTreeSlots               = slots
+                                   }
+                    patched <- patchInContainer
+                      (StateTreeContainer top' childStates)
+                      containerWidget
+                      (unChildren oldChildren)
+                      (unChildren newChildren)
+                    -- The deferred properties name children, so they are
+                    -- set now that this patch has put the children there.
+                    -- A stack that is told to show a child in the same
+                    -- patch that adds it would otherwise be told before
+                    -- the child was there, which GTK reports as a warning
+                    -- and then ignores.
+                    let later = deferredProps deferred newCollectedProps
+                    unless (HashMap.null later) $ updateProperties
+                      containerWidget
+                      (deferredProps deferred oldCollectedProps)
+                      later
+                    pure (SomeState patched)
+                  else Replace (create new)
+          _ -> Replace (create new)
 
 --
 -- EventSource
