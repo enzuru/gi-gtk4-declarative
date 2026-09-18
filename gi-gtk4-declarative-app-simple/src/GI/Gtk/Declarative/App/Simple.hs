@@ -16,6 +16,9 @@ module GI.Gtk.Declarative.App.Simple
   , AppView
   , Sub
   , sub
+  , subKey
+  , subRun
+  , qualifyingSubs
   , Transition(..)
   , Cmd
   , none
@@ -23,6 +26,8 @@ module GI.Gtk.Declarative.App.Simple
   , emit
   , stream
   , keyed
+  , qualifying
+  , jobsOf
   , run
   , runLoop
   , runInApplication
@@ -38,6 +43,7 @@ import           Control.Exception              ( SomeException,
                                                   finally,
                                                   throwIO)
 import           Control.Monad
+import           Data.Bifunctor                 ( Bifunctor(..) )
 import           Data.Foldable                  ( for_
                                                 , traverse_
                                                 )
@@ -45,6 +51,7 @@ import qualified Data.Function                 as Function
 import           Data.IORef
 import           Data.List                      ( nubBy )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as Text
 import           Data.Typeable
 import qualified GI.GLib                       as GLib
 import qualified GI.Gio                        as Gio
@@ -133,6 +140,35 @@ data Sub event = Sub
 sub :: Text -> Producer event IO () -> Sub event
 sub = Sub
 
+-- | A subscription can be read as another kind of event, the same way
+-- a command can.
+--
+-- The name is left as it is, and names are shared by everything the
+-- loop runs, so a part that is used more than once wants
+-- 'qualifyingSubs' as well.
+instance Functor Sub where
+  fmap f subscription =
+    subscription { subRun = subRun subscription >-> Pipes.map f }
+
+-- | Put a prefix in front of the name of each of these subscriptions,
+-- with a @\/@ between the two.
+--
+-- Two subscriptions under one name are one subscription, so a part of
+-- an application that can be there more than once says which one it
+-- is:
+--
+-- @
+-- subscriptions state =
+--   concat [ qualifyingSubs (tabName tab) (fmap (InTab tab) <$> gameSubs game)
+--          | (tab, game) <- tabs state
+--          ]
+-- @
+qualifyingSubs :: Text -> [Sub event] -> [Sub event]
+qualifyingSubs prefix subscriptions' =
+  [ subscription { subKey = under prefix (subKey subscription) }
+  | subscription <- subscriptions'
+  ]
+
 -- | The top-level widget for the 'view' function of an 'App',
 -- requiring a GTK 'Gtk.Window'.
 type AppView window event = Bin window event
@@ -144,6 +180,19 @@ data Transition state event =
   Transition state (Cmd event)
   -- | Exit the application.
   | Exit
+
+-- | The events of a transition can be read as another kind of event,
+-- which is what an application does with the transition of a part of
+-- itself.
+instance Functor (Transition state) where
+  fmap f (Transition state cmd) = Transition state (fmap f cmd)
+  fmap _ Exit                   = Exit
+
+-- | The state as well, for a part of an application whose state is
+-- part of the state around it.
+instance Bifunctor Transition where
+  bimap f g (Transition state cmd) = Transition (f state) (fmap g cmd)
+  bimap _ _ Exit                   = Exit
 
 -- | What an update asks the loop to do, beside changing the state.
 --
@@ -172,11 +221,59 @@ data Job event = Job
   , jobRun :: Producer event IO ()
   }
 
+-- | A command can be read as another kind of event, which is how a
+-- part of an application that has its own events is put inside one
+-- that has others:
+--
+-- @
+-- inTab :: TabId -> Transition Game GameEvent -> Transition State Event
+-- inTab tab = bimap (inGame tab) (InTab tab)
+-- @
+--
+-- The names of the jobs are left as they are, and names are shared by
+-- everything the loop runs, so a part that is used more than once
+-- wants 'qualifying' as well.
+instance Functor Cmd where
+  fmap f (Cmd jobs) =
+    Cmd [ job { jobRun = jobRun job >-> Pipes.map f } | job <- jobs ]
+
 instance Semigroup (Cmd event) where
   Cmd one <> Cmd other = Cmd (one <> other)
 
 instance Monoid (Cmd event) where
   mempty = Cmd []
+
+-- | Put a prefix in front of the name of every named job in a command,
+-- with a @\/@ between the two. A job with no name stays without one.
+--
+-- Names are shared by everything the loop runs, so two of anything
+-- that names its jobs will stop each other's work: two tabs that both
+-- ask for @"preview"@ are one @"preview"@. A part of an application
+-- that can be there more than once therefore says which one it is:
+--
+-- @
+-- qualifying (tabName tab) (fmap (InTab tab) (gameCmd game))
+-- @
+--
+-- 'keyed' replaces a name and this puts something in front of it, so
+-- the two go together rather than one instead of the other.
+qualifying :: Text -> Cmd event -> Cmd event
+qualifying prefix (Cmd jobs) =
+  Cmd [ job { jobKey = fmap (under prefix) (jobKey job) } | job <- jobs ]
+
+-- | A name under a prefix.
+under :: Text -> Text -> Text
+under prefix name = prefix <> Text.pack "/" <> name
+
+-- | The jobs of a command, each with the name it runs under.
+--
+-- This is for a test, which can then run a job and read the events it
+-- yields with @Pipes.toListM@, and see the name it would run under. A
+-- job made with 'stream' may never end, so what to do with each of
+-- these is something the caller has to know from having asked for
+-- them.
+jobsOf :: Cmd event -> [(Maybe Text, Producer event IO ())]
+jobsOf (Cmd jobs) = [ (jobKey job, jobRun job) | job <- jobs ]
 
 -- | A command with nothing to do, which is what an update that only
 -- changes the state answers with.

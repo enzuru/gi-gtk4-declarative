@@ -40,6 +40,11 @@
 -- For a controller this module does not name, and for handlers that
 -- need the widget, use 'onController' and 'onControllerM' from
 -- "GI.Gtk.Declarative.Attributes".
+--
+-- A custom widget adds its own controllers rather than declaring them,
+-- and a widget takes a controller over when it is given one. Use
+-- 'addOwnedController' for that, which hands back a reference the
+-- custom widget can keep.
 module GI.Gtk.Declarative.EventController
   ( -- * Keys
     onKeyPressed
@@ -62,6 +67,8 @@ module GI.Gtk.Declarative.EventController
   , onDragEnd
     -- * Long presses
   , onLongPressed
+    -- * Adding one by hand
+  , addOwnedController
   )
 where
 
@@ -71,6 +78,8 @@ import qualified GI.Gdk                        as Gdk
 import qualified GI.Gtk                        as Gtk
 
 import           GI.Gtk.Declarative.Attributes
+import           GI.Gtk.Declarative.Attributes.Internal
+                                                ( addOwnedController )
 
 -- | A key was pressed while the widget had the keyboard focus. The
 -- handler receives the key value, the hardware key code, and the

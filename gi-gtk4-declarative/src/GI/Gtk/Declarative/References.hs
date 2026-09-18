@@ -29,9 +29,18 @@
 -- The name is the widget's GTK name, which is also what a CSS @#id@
 -- selector matches, and what a GtkBuilder file calls an id.
 --
--- A reference is resolved once the tree is built, and again after each
--- patch. A name that matches nothing is reported as a warning through
--- GLib, and leaves the property unset.
+-- A reference is resolved on the next turn of the main loop, once when
+-- the tree is built and again after each patch. It waits because a
+-- widget that names another is often built before it, and a lookup at
+-- that moment would find nothing.
+--
+-- So a caller that reads the property straight after building the tree
+-- reads it before it is set, and has to let the loop turn first. A
+-- running application never notices, because a turn of the loop comes
+-- before anything a person can do.
+--
+-- A name that matches nothing is reported as a warning through GLib,
+-- and leaves the property unset.
 --
 -- For a property this module does not name, use 'reference' from
 -- "GI.Gtk.Declarative.Attributes" with the setter from gi-gtk.

@@ -324,10 +324,14 @@ afterCreated = AfterCreated
 -- container Gtk.Stack [#name := "pages"] children
 -- @
 --
--- The reference is resolved once the whole tree is built, and again
--- after each patch, by looking through the widgets under the same root
--- for one with that name. A name that matches nothing is reported as a
--- warning through GLib.
+-- The reference is resolved on the next turn of the main loop, once
+-- when the whole tree is built and again after each patch, by looking
+-- through the widgets under the same root for one with that name. It
+-- waits because a widget that names another is often built before it.
+-- A caller that reads the property straight after building the tree
+-- therefore reads it before it is set; a running application never
+-- notices. A name that matches nothing is reported as a warning
+-- through GLib.
 --
 -- "GI.Gtk.Declarative.References" has this ready-made for the widgets
 -- that point at another widget.

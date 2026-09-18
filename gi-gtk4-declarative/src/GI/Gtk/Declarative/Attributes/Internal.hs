@@ -13,6 +13,7 @@
 module GI.Gtk.Declarative.Attributes.Internal
   ( addSignalHandler
   , addSignalHandlers
+  , addOwnedController
   , runAfterCreated
   , createSlots
   , patchSlots
@@ -33,6 +34,7 @@ import           Data.Foldable                  ( fold
                                                 )
 import           Data.GI.Base                   ( GType(..)
                                                 , glibType
+                                                , withManagedPtr
                                                 , gtypeToCGType
                                                 , newObject
                                                 , withManagedPtr
@@ -162,6 +164,29 @@ addController widget' slot' newController signal callback = liftIO $ do
     Nothing -> freshController widget' w slot' wanted newController
   handlerId <- Gtk.on (asController kept :: controller) signal callback
   pure (fromCancellation (GI.signalHandlerDisconnect kept handlerId))
+
+-- | Add an event controller to a widget, and answer with a reference
+-- the caller still owns.
+--
+-- A widget takes a controller over when it is given one, so the value
+-- that was handed in is a value nobody owns, and reading it again is
+-- what the bindings warn about at run time. This hands back a
+-- reference that is owned, for a custom widget that has to reach its
+-- controllers after it has added them.
+--
+-- The controller is the caller's from then on, and this library leaves
+-- it alone: a controller it did not put there is in none of its slots.
+addOwnedController
+  :: (Gtk.IsWidget widget, Gtk.IsEventController controller, MonadIO m)
+  => widget
+  -> controller
+  -> m controller
+addOwnedController widget' controller = liftIO $ do
+  -- Read while the value is still the caller's. The pointer stays good
+  -- because the widget holds the controller from here on.
+  address <- withManagedPtr controller (pure . castPtr)
+  Gtk.widgetAddController widget' controller
+  asController <$> ownedController address
 
 -- | Make a controller, put it on the widget, and write down where it
 -- is.

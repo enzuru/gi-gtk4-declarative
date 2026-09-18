@@ -111,10 +111,19 @@ its own answers with the name of its class, so pick a distinctive one.
 - `mnemonicWidget`, for a label
 - `defaultWidget`, for a window
 
-A reference is resolved once the whole tree is built, and again after
-each patch, because the widget it names may have been replaced. A name
-that matches nothing leaves the property unset and is reported as a
-warning through GLib.
+A reference is resolved on the next turn of the main loop, once when the
+whole tree is built and again after each patch, because the widget it
+names may have been replaced. It waits because a widget that names
+another is often built before it, and a lookup at that moment would find
+nothing.
+
+A running application never notices the wait, because a turn of the loop
+comes before anything a person can do. A test does: read the property
+straight after building the tree and it is not set yet, so let the loop
+turn once first.
+
+A name that matches nothing leaves the property unset and is reported as
+a warning through GLib.
 
 For a property this module does not name, use `reference` with the
 setter from gi-gtk:
