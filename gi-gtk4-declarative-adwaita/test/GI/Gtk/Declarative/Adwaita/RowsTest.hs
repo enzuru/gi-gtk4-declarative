@@ -117,6 +117,99 @@ prop_an_action_row_child_that_changes_end_is_built_again =
       pure (before /= after)
     built === True
 
+-- * The page, the dialog and the expander row
+
+prop_a_preferences_page_holds_its_groups = withTests 1 . property $ do
+  titles <- evalIO $ render
+    [ container
+        Adw.PreferencesPage
+        []
+        [ container Adw.PreferencesGroup [#title := ("One" :: Text)] []
+        , container Adw.PreferencesGroup [#title := ("Two" :: Text)] []
+        ]
+    ]
+    groupTitles
+  titles === ["One", "Two"]
+
+prop_a_preferences_page_takes_a_group_away = withTests 1 . property $ do
+  titles <- evalIO $ render
+    [ container
+      Adw.PreferencesPage
+      []
+      [ container Adw.PreferencesGroup [#title := ("One" :: Text)] []
+      , container Adw.PreferencesGroup [#title := ("Two" :: Text)] []
+      ]
+    , container Adw.PreferencesPage
+                []
+                [container Adw.PreferencesGroup [#title := ("One" :: Text)] []]
+    ]
+    groupTitles
+  titles === ["One"]
+
+-- | A dialog's pages are not below it in the widget tree until it is
+-- presented, so what says they arrived is the dialog itself: a dialog
+-- with no pages shows none.
+prop_a_preferences_dialog_holds_its_pages = withTests 1 . property $ do
+  visible <- evalIO $ render
+    [ container
+        Adw.PreferencesDialog
+        []
+        [ container Adw.PreferencesPage [#name := ("first" :: Text)] []
+        , container Adw.PreferencesPage [#name := ("second" :: Text)] []
+        ]
+    ]
+    (\widget' -> do
+      dialog <- Gtk.unsafeCastTo Adw.PreferencesDialog widget'
+      Adw.preferencesDialogGetVisiblePageName dialog
+    )
+  visible === Just "first"
+
+prop_an_expander_row_holds_the_rows_it_reveals = withTests 1 . property $ do
+  titles <- evalIO $ render
+    [ container
+        Adw.ExpanderRow
+        [#title := ("Nightlies" :: Text)]
+        [ widget Adw.ActionRow [#title := ("Metadata URL" :: Text)]
+        , widget Adw.SwitchRow [#title := ("Prereleases" :: Text)]
+        ]
+    ]
+    descendantTitles
+  -- The expander row is a row itself, and libadwaita puts a row of its
+  -- own inside it for the header, so the title is read twice before
+  -- the rows it reveals.
+  titles === ["Nightlies", "Nightlies", "Metadata URL", "Prereleases"]
+
+-- | The row this item was reported against: a container, and a thing a
+-- person changes. Its header switch has to be held, and a container
+-- that dropped `holding` is what the report was about.
+prop_an_expander_row_is_held_to_its_switch = withTests 1 . property $ do
+  (drifted, afterPatch) <- evalIO $ do
+    let markup =
+          container Adw.ExpanderRow
+                    [#showEnableSwitch := True, holding #enableExpansion True]
+                    [widget Adw.ActionRow [#title := ("Inside" :: Text)]]
+            :: Widget Event
+    state    <- runUI (create markup)
+    widget'  <- runUI (someStateWidget state)
+    row      <- runUI (Gtk.unsafeCastTo Adw.ExpanderRow widget')
+    runUI (Adw.expanderRowSetEnableExpansion row False)
+    drifted' <- runUI (Adw.expanderRowGetEnableExpansion row)
+    _        <- runUI (patch' state markup markup)
+    after    <- runUI (Adw.expanderRowGetEnableExpansion row)
+    pure (drifted', after)
+  drifted === False
+  afterPatch === True
+
+-- | The titles of the preferences groups below a widget.
+groupTitles :: Gtk.Widget -> IO [Text]
+groupTitles root = do
+  widgets <- descendants root
+  groups  <- traverse (Gtk.castTo Adw.PreferencesGroup) widgets
+  traverse Adw.preferencesGroupGetTitle (catMaybes groups)
+
+catMaybes :: [Maybe a] -> [a]
+catMaybes = foldr (\x xs -> maybe xs (: xs) x) []
+
 -- * The toggle group
 
 sizes :: [Toggle]
@@ -241,8 +334,6 @@ descendantTitles root = do
   widgets <- descendants root
   rows    <- traverse (Gtk.castTo Adw.PreferencesRow) widgets
   traverse Adw.preferencesRowGetTitle (catMaybes rows)
- where
-  catMaybes = foldr (\x xs -> maybe xs (: xs) x) []
 
 -- | The label below this widget that says this, if there is one.
 labelNamed :: Gtk.Widget -> Text -> IO (Maybe Gtk.Widget)

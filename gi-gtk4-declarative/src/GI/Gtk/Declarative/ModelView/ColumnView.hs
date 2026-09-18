@@ -265,7 +265,7 @@ instance Patchable (ColumnView item) where
                     state = stateTreeCustomState top
                     base  = columnBase state
                 updateProperties view oldCollectedProps newCollectedProps
-                updateHeldProperties view (collectedHeld newCollected)
+                updateOtherProperties view oldCollected newCollected
                 updateClasses view
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

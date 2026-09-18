@@ -245,6 +245,61 @@ prop_a_reference_to_the_wrong_kind_of_widget_points_at_nothing =
       )
     found === False
 
+-- | The row a list box has selected, which is not a property and so
+-- can only be said by name.
+prop_a_list_box_selects_the_row_it_names = withTests 1 . property $ do
+  (first', second') <- evalIO $ do
+    let boxOf chosen = bin
+          Gtk.Window
+          []
+          (container Gtk.ListBox
+                     [selectedRow chosen]
+                     (Vector.fromList [ rowNamed name | name <- ["a", "b", "c"] ])
+          ) :: Widget Event
+    window <- runUI $ do
+      state <- create (boxOf "b")
+      Gtk.unsafeCastTo Gtk.Window =<< someStateWidget state
+    settle
+    firstName  <- runUI (selectedName window)
+    -- Rendered again, pointing somewhere else.
+    window'    <- runUI $ do
+      Gtk.windowDestroy window
+      state <- create (boxOf "c")
+      Gtk.unsafeCastTo Gtk.Window =<< someStateWidget state
+    settle
+    secondName <- runUI (selectedName window')
+    runUI (Gtk.windowDestroy window')
+    pure (firstName, secondName)
+  first' === Just "b"
+  second' === Just "c"
+
+-- | A name that matches nothing selects nothing, which is how a view
+-- says that nothing is chosen.
+prop_a_list_box_that_names_nothing_selects_nothing =
+  withTests 1 . property $ do
+    found <- evalIO $ renderWindow
+      (bin
+        Gtk.Window
+        []
+        (container Gtk.ListBox
+                   [selectedRow "no-such-row"]
+                   (Vector.fromList [ rowNamed name | name <- ["a", "b"] ])
+        )
+      )
+      selectedName
+    found === Nothing
+
+rowNamed :: Text -> Widget Event
+rowNamed name =
+  bin Gtk.ListBoxRow [#name := name] (widget Gtk.Label [#label := name])
+
+-- | The name of the row a window's list box has selected.
+selectedName :: Gtk.Window -> IO (Maybe Text)
+selectedName window = do
+  box <- firstOfType Gtk.ListBox window
+  row <- traverse Gtk.listBoxGetSelectedRow box
+  traverse Gtk.widgetGetName (join row)
+
 -- | The first widget of this type below the window.
 firstOfType
   :: Gtk.GObject widget

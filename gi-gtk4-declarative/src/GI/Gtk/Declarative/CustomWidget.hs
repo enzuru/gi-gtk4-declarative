@@ -80,7 +80,7 @@ instance
     updateProperties widget mempty (collectedProperties collected)
     -- A custom widget is built by its own action rather than from the
     -- construct properties, so what it is held to is set here.
-    updateHeldProperties widget (collectedHeld collected)
+    updateOtherProperties widget mempty collected
     updateClasses widget mempty (collectedClasses collected)
     slots <- createSlots widget (customAttributes custom)
     resolveReferences widget (customAttributes custom)
@@ -111,7 +111,7 @@ instance
               | canBeModified -> Modify $ do
                 let widget' = stateTreeNodeWidget stateTree
                 updateProperties widget' oldCollectedProps newCollectedProps
-                updateHeldProperties widget' (collectedHeld newCollected)
+                updateOtherProperties widget' oldCollected newCollected
                 updateClasses widget'
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

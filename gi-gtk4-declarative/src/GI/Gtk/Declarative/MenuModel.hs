@@ -282,7 +282,7 @@ instance Patchable (MenuWidget widget) where
               then Modify $ do
                 let widget' = stateTreeWidget top
                 updateProperties widget' oldCollectedProps newCollectedProps
-                updateHeldProperties widget' (collectedHeld newCollected)
+                updateOtherProperties widget' oldCollected newCollected
                 updateClasses widget'
                               (collectedClasses oldCollected)
                               (collectedClasses newCollected)

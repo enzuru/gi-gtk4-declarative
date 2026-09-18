@@ -49,6 +49,13 @@ SOURCES := $(shell find $(LIB) $(APP) $(ADWAITA) -name '*.hs')
 # but GTK still refuses to start without a display.
 XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 
+# A GTK or libadwaita CRITICAL is a library being held wrong, and one
+# printed in the middle of a passing test is a thing nobody reads. Two
+# defects have hidden there: a toolbar view asked to remove a widget it
+# no longer held, and a toggle group given a name it already had. This
+# turns the next one into a failure.
+FATAL := G_DEBUG=fatal-criticals
+
 # A GtkApplication registers itself on the session bus, and answers
 # nothing at all when there is none, so the suite that makes one runs
 # under a bus of its own.
@@ -103,7 +110,7 @@ check: check-lib check-adwaita check-app check-input check-toggle
 # The library's own suite: patching, custom widgets, every container,
 # and the menus.
 check-lib: $(BUILD)/tests
-	$(XVFB) $(BUILD)/tests
+	$(FATAL) $(XVFB) $(BUILD)/tests
 
 $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/Declarative/*.hs)
 	@mkdir -p $(BUILD)
@@ -113,7 +120,7 @@ $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/De
 # The libadwaita widgets, which are a package of their own because the
 # core depends on GTK and on nothing else.
 check-adwaita: $(BUILD)/adwaita-tests
-	$(XVFB) $(BUILD)/adwaita-tests
+	$(FATAL) $(XVFB) $(BUILD)/adwaita-tests
 
 $(BUILD)/adwaita-tests: $(SOURCES) $(wildcard $(ADWTEST)/*.hs) $(wildcard $(ADWTEST)/GI/Gtk/Declarative/Adwaita/*.hs)
 	@mkdir -p $(BUILD)
@@ -122,7 +129,7 @@ $(BUILD)/adwaita-tests: $(SOURCES) $(wildcard $(ADWTEST)/*.hs) $(wildcard $(ADWT
 
 # The application loop: inputs, exits, and exceptions.
 check-app: $(BUILD)/app-tests
-	GTK_A11Y=none $(XVFB) $(DBUS) $(BUILD)/app-tests
+	GTK_A11Y=none $(FATAL) $(XVFB) $(DBUS) $(BUILD)/app-tests
 
 $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)

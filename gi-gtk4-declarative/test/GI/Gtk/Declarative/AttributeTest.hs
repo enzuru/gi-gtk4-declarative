@@ -1,4 +1,6 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedLists     #-}
@@ -25,8 +27,25 @@ import           Data.Text                      ( Text )
 import qualified GI.Gtk                        as Gtk
 import           Hedgehog                hiding ( label )
 
+import           Data.Vector                    ( Vector )
 import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.EventSource
+import           GI.Gtk.Declarative.MenuModel
+import           GI.Gtk.Declarative.ModelView.ColumnView
+                                                ( ColumnViewParams(..)
+                                                , column
+                                                , columnView
+                                                , defaultColumnViewParams
+                                                )
+import qualified GI.Gtk.Declarative.ModelView.ColumnView
+                                               as ColumnView
+import           GI.Gtk.Declarative.ModelView.ListView
+                                                ( ListViewParams(..)
+                                                , defaultListViewParams
+                                                , listView
+                                                )
+import qualified GI.Gtk.Declarative.ModelView.ListView
+                                               as ListView
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.TestUtils
 
@@ -190,6 +209,117 @@ prop_a_container_is_held_when_it_is_built = withTests 1 . property $ do
     state <- runUI (create markup)
     runUI (Gtk.widgetGetSensitive =<< someStateWidget state)
   sensitive === False
+
+-- * Every kind of markup, and the properties that need more than
+-- setting
+
+-- | A custom widget that takes the attributes it is given, so that it
+-- can stand in the table below like the others.
+customEntry :: Vector (Attribute Gtk.Entry Inner) -> Widget Inner
+customEntry attributes = Widget (CustomWidget { .. })
+ where
+  customWidget = Gtk.Entry
+  customParams = ()
+  customAttributes = attributes
+  customCreate () = do
+    entry <- Gtk.new Gtk.Entry []
+    pure (entry, ())
+  customPatch :: () -> () -> () -> CustomPatch Gtk.Entry ()
+  customPatch _ () () = CustomKeep
+  customSubscribe
+    :: () -> () -> Gtk.Entry -> (Inner -> IO ()) -> IO Subscription
+  customSubscribe () () _entry _cb = pure (fromCancellation (pure ()))
+
+oneRow :: ListViewParams Text Inner
+oneRow = (defaultListViewParams (\text -> widget Gtk.Label [#label := text]))
+  { ListView.rows = ["one"]
+  }
+
+oneCell :: ColumnViewParams Text Inner
+oneCell =
+  (defaultColumnViewParams
+      [column "only" "Only" (\text -> widget Gtk.Label [#label := text])]
+    )
+    { ColumnView.rows = ["one"]
+    }
+
+fileMenu :: Vector (MenuItem Inner)
+fileMenu = [subMenu ("File" :: Text) [menuItem ("Quit" :: Text) Toggled]]
+
+-- | One of every kind of markup there is, each holding a property.
+--
+-- A property that needs more than setting is applied by each kind of
+-- markup in its own patch, so a kind that forgets forgets silently.
+-- That is not a thought experiment: a container forgot 'holding' for
+-- three days, and nothing here noticed, because the tests asked one
+-- kind of markup and took its answer for all of them.
+heldShapes :: [(Text, Widget Inner)]
+heldShapes =
+  [ ("a single widget", widget Gtk.Entry [holding #sensitive True])
+  , ("a bin"      , bin Gtk.Frame [holding #sensitive True] (widget Gtk.Label []))
+  , ("a container", container Gtk.Box [holding #sensitive True] [])
+  , ("a custom widget", customEntry [holding #sensitive True])
+  , ("a menu bar" , menuBar [holding #sensitive True] fileMenu)
+  , ("a list view", listView [holding #sensitive True] oneRow)
+  , ("a column view", columnView [holding #sensitive True] oneCell)
+  ]
+
+prop_every_kind_of_markup_is_held_to_its_properties =
+  withTests 1 . property $ do
+    answers <- evalIO (traverse (traverse driftAndPatch) heldShapes)
+    answers === map (\(name, _) -> (name, True)) heldShapes
+
+-- | Render, switch the widget off from outside the markup, and patch
+-- with the markup that was there before. A held property comes back.
+driftAndPatch :: Widget Inner -> IO Bool
+driftAndPatch markup = do
+  state   <- runUI (create markup)
+  widget' <- runUI (someStateWidget state)
+  runUI (Gtk.widgetSetSensitive widget' False)
+  _ <- runUI (patch' state markup markup)
+  runUI (Gtk.widgetGetSensitive widget')
+
+-- | The same kinds, with a property that can be unset.
+clearingShapes :: [(Text, Maybe Text -> Widget Inner)]
+clearingShapes =
+  [ ("a single widget", \t -> widget Gtk.Entry [#tooltipText :=? t])
+  , ( "a bin"
+    , \t -> bin Gtk.Frame [#tooltipText :=? t] (widget Gtk.Label [])
+    )
+  , ("a container"    , \t -> container Gtk.Box [#tooltipText :=? t] [])
+  , ("a custom widget", \t -> customEntry [#tooltipText :=? t])
+  , ("a menu bar"     , \t -> menuBar [#tooltipText :=? t] fileMenu)
+  , ("a list view"    , \t -> listView [#tooltipText :=? t] oneRow)
+  , ("a column view"  , \t -> columnView [#tooltipText :=? t] oneCell)
+  ]
+
+-- | A property that can be unset is unset by 'Nothing', and the widget
+-- is the widget it was. Dropping the attribute instead would build it
+-- again, and take the keyboard with it.
+prop_every_kind_of_markup_can_unset_a_property = withTests 1 . property $ do
+  answers <- evalIO (traverse (traverse unsetting) clearingShapes)
+  answers === map (\(name, _) -> (name, (Nothing, True))) clearingShapes
+
+unsetting :: (Maybe Text -> Widget Inner) -> IO (Maybe Text, Bool)
+unsetting markup = do
+  let said    = markup (Just "something is wrong")
+      unsaid  = markup Nothing
+  state   <- runUI (create said)
+  before  <- runUI (someStateWidget state)
+  _       <- runUI (patch' state said unsaid)
+  after   <- runUI (someStateWidget state)
+  tooltip <- runUI (Gtk.widgetGetTooltipText after)
+  pure (tooltip, before == after)
+
+-- | And it is set again when the markup says so.
+prop_a_property_that_was_unset_can_be_set_again = withTests 1 . property $ do
+  tooltip <- evalIO $ do
+    let markup t = widget Gtk.Entry [#tooltipText :=? t] :: Widget Inner
+    state   <- runUI (create (markup Nothing))
+    _       <- runUI (patch' state (markup Nothing) (markup (Just "here")))
+    widget' <- runUI (someStateWidget state)
+    runUI (Gtk.widgetGetTooltipText widget')
+  tooltip === Just "here"
 
 -- * Handlers that are given the widget
 

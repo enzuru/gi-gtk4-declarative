@@ -42,6 +42,33 @@ container ListBox [ #selectionMode := SelectionModeMultiple ]
 
 [gi-gtk]: https://hackage.haskell.org/package/gi-gtk
 
+## A property that is sometimes there
+
+A property that is in one render's attribute list and not in the next
+builds the widget again. The list of properties is what decides whether
+a widget can be patched at all, and most properties cannot be unset, so
+a list that loses one is a different widget.
+
+That is a trap for a property that _can_ be unset. Dropping the
+attribute is the obvious way to write "no tooltip":
+
+``` haskell
+-- Wrong. The widget is built again the moment the problem goes away,
+-- and the keyboard goes with it.
+widget Adw.EntryRow
+  ([#title := title] <> foldMap (\m -> [#tooltipText := m]) problem)
+```
+
+Say it with `:=?` instead, which stays in the list and takes a `Maybe`:
+
+``` haskell
+widget Adw.EntryRow [#title := title, #tooltipText :=? problem]
+```
+
+`Nothing` unsets the property and `Just` sets it. It is only for a
+property GTK allows to be unset, which the type checker knows: a
+property that cannot be cleared cannot be written this way.
+
 ## Properties a person can change
 
 A property declared with `:=` is compared with what the markup said
@@ -179,6 +206,16 @@ its own answers with the name of its class, so pick a distinctive one.
 - `keyCaptureWidget`, for a search bar
 - `mnemonicWidget`, for a label
 - `defaultWidget`, for a window
+- `selectedRow`, for a list box
+
+The last one is there because a list box's selection is not a property.
+A row is selected by asking the box to select it, so naming the row is
+the only way a view can say which one is current. A name that matches
+nothing unselects.
+
+A reference looks below the widget that is pointing first, and then
+below the whole tree. A list box naming one of its own rows therefore
+searches its rows rather than the window.
 
 A reference is resolved on the next turn of the main loop, once when the
 whole tree is built and again after each patch, because the widget it

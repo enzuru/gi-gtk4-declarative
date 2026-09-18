@@ -82,6 +82,21 @@ data Attribute widget event where
       , Typeable setValue
       )
    => GI.AttrLabelProxy (attr :: Symbol) -> setValue -> Attribute widget event
+  -- | A property that can be unset, and the value it has or has not.
+  -- 'Nothing' unsets it.
+  (:=?)
+    ::(GI.AttrOpAllowed 'GI.AttrConstruct info widget
+      , GI.AttrOpAllowed 'GI.AttrSet info widget
+      , GI.AttrClearC info widget attr
+      , GI.AttrSetTypeConstraint info value
+      , KnownSymbol attr
+      , Typeable attr
+      , Eq value
+      , Typeable value
+      )
+   => GI.AttrLabelProxy (attr :: Symbol)
+   -> Maybe value
+   -> Attribute widget event
   -- | A property the widget is held to. Use the 'holding' function
   -- instead of this constructor directly.
   Holding
@@ -177,11 +192,19 @@ data Attribute widget event where
     -> EventHandler gtkCallback widget Impure event
     -> Attribute widget event
 
+-- | As tight as the @:=@ of haskell-gi, which this one is written
+-- beside. Without it, @:=@ binds tighter than every other operator,
+-- and @#label := a <> b@ reads as @(#label := a) <> b@: an error about
+-- types, from a line whose fault is a missing fixity.
+infixr 0 :=
+infixr 0 :=?
+
 -- | Attributes have a 'Functor' instance that maps events in all
 -- event handler.
 instance Functor (Attribute widget) where
   fmap f = \case
     attr := value            -> attr := value
+    attr :=? value           -> attr :=? value
     Holding attr value       -> Holding attr value
     Classes cs               -> Classes cs
     OnSignalPure   signal eh -> OnSignalPure signal (fmap f eh)
@@ -417,6 +440,12 @@ collectAttributes = foldl' go mempty
     -> Attribute widget event
     -> Collected widget event
   go Collected {..} = \case
+    attr :=? value -> Collected
+      { collectedMaybe = HashMap.insert (T.pack (symbolVal attr))
+                                        (MaybeProperty attr value)
+                                        collectedMaybe
+      , ..
+      }
     Holding attr value -> Collected
       { collectedHeld = HashMap.insert (T.pack (symbolVal attr))
                                        (HeldProperty attr value)

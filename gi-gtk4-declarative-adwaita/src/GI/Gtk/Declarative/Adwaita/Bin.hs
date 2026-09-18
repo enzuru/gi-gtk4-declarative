@@ -60,6 +60,12 @@ instance IsBin Adw.Dialog where
   setBinChild = Adw.dialogSetChild
   getBinChild = Adw.dialogGetChild
 
+-- | A page of an @AdwNavigationView@ or an @AdwNavigationSplitView@,
+-- which holds the widget that is on that page.
+instance IsBin Adw.NavigationPage where
+  setBinChild = Adw.navigationPageSetChild
+  getBinChild = Adw.navigationPageGetChild
+
 -- | The child an @AdwTabOverview@ shows when it is not open, which is
 -- the tab view itself or something holding it.
 instance IsBin Adw.TabOverview where

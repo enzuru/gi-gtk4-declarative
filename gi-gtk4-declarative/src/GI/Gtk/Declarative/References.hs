@@ -50,6 +50,7 @@ module GI.Gtk.Declarative.References
   , keyCaptureWidget
   , mnemonicWidget
   , defaultWidget
+  , selectedRow
   )
 where
 
@@ -103,6 +104,44 @@ defaultWidget
   => Text
   -> Attribute widget event
 defaultWidget = reference Gtk.windowSetDefaultWidget
+
+-- | The row a 'Gtk.ListBox' has selected, named by its @name@
+-- property.
+--
+-- A list box's selection is not a property, so this is the only way a
+-- view can say which of its rows is the current one:
+--
+-- @
+-- container Gtk.ListBox [selectedRow (chosen state)]
+--   [ bin Gtk.ListBoxRow [#name := tool] (widget Gtk.Label [])
+--   | tool <- tools
+--   ]
+-- @
+--
+-- A name that matches nothing unselects, which is how a view says that
+-- nothing is chosen. Selection mode @browse@ does not answer for this:
+-- it picks a row of its own only while the first row it is given is
+-- one it can select, so a list with a heading row at the top starts
+-- with nothing selected and a view that believes otherwise.
+selectedRow
+  :: (Gtk.IsListBox widget, Gtk.IsWidget widget)
+  => Text
+  -> Attribute widget event
+selectedRow = reference $ \listBox target -> do
+  box <- Gtk.toListBox listBox
+  case target of
+    Nothing    -> Gtk.listBoxUnselectAll box
+    Just found -> do
+      row <- Gtk.castTo Gtk.ListBoxRow found
+      case row of
+        Just row' -> Gtk.listBoxSelectRow box (Just row')
+        Nothing   -> do
+          name <- Gtk.widgetGetName found
+          GLib.logDefaultHandler
+            (Just "gi-gtk4-declarative")
+            [GLib.LogLevelFlagsLevelWarning]
+            (Just ("The widget named " <> name <> " is not a list box row."))
+            nullPtr
 
 -- | The widget a reference found, if it is a stack. One that is not is
 -- reported, rather than thrown, because this runs on the main loop
