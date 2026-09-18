@@ -120,6 +120,11 @@ instance
     -- The deferred properties name children, so they are set now that
     -- the children are there.
     unless (HashMap.null later) $ updateProperties widget' mempty later
+    -- A container's properties are split into the ones it is built with
+    -- and the ones that wait for its children, so what it is held to is
+    -- set here rather than at construction, with the rest of the
+    -- waiting ones.
+    updateHeldProperties widget' (collectedHeld collected)
     runAfterCreated widget' attrs
     return
       (SomeState
@@ -177,6 +182,11 @@ instance
                       containerWidget
                       (deferredProps deferred oldCollectedProps)
                       later
+                    -- What the container is held to, after the children
+                    -- are there, for the same reason as the deferred
+                    -- properties above.
+                    updateHeldProperties containerWidget
+                                         (collectedHeld newCollected)
                     pure (SomeState patched)
                   else Replace (create new)
           _ -> Replace (create new)

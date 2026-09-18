@@ -157,6 +157,40 @@ prop_holding_a_property_that_was_not_held_keeps_the_widget =
       pure (before == after)
     same === True
 
+-- | A container is held to a property in the same way a widget with no
+-- children is.
+--
+-- A container splits its properties into the ones it is built with and
+-- the ones that wait for its children, and that split is where the
+-- held ones went missing: a container took the attribute, said
+-- nothing, and behaved as though it were an ordinary property.
+prop_a_container_is_held_to_its_properties = withTests 1 . property $ do
+  (drifted, afterPatch) <- evalIO $ do
+    let markup =
+          container Gtk.Box
+                    [holding #sensitive True]
+                    [BoxChild defaultBoxChildProperties (widget Gtk.Label [])]
+            :: Widget Inner
+    state    <- runUI (create markup)
+    box      <- runUI (someStateWidget state)
+    -- What something outside the markup does.
+    runUI (Gtk.widgetSetSensitive box False)
+    drifted' <- runUI (Gtk.widgetGetSensitive box)
+    _        <- runUI (patch' state markup markup)
+    after    <- runUI (Gtk.widgetGetSensitive box)
+    pure (drifted', after)
+  drifted === False
+  afterPatch === True
+
+-- | And it is held from the moment it is built.
+prop_a_container_is_held_when_it_is_built = withTests 1 . property $ do
+  sensitive <- evalIO $ do
+    let markup =
+          container Gtk.Box [holding #sensitive False] [] :: Widget Inner
+    state <- runUI (create markup)
+    runUI (Gtk.widgetGetSensitive =<< someStateWidget state)
+  sensitive === False
+
 -- * Handlers that are given the widget
 
 -- | An impure handler is given the widget it is on and answers in
