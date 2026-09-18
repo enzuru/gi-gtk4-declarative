@@ -20,14 +20,17 @@ category:             Graphics
 build-type:           Simple
 cabal-version:        >=1.10
 extra-source-files:   CHANGELOG.md
+                    , test/ToggleApp.hs
 tested-with:          GHC == 9.10.3
 
 library
   exposed-modules:      GI.Gtk.Declarative.Adwaita.Bin
                       , GI.Gtk.Declarative.Adwaita.HeaderBar
                       , GI.Gtk.Declarative.Adwaita.References
+                      , GI.Gtk.Declarative.Adwaita.Rows
                       , GI.Gtk.Declarative.Adwaita.Slots
                       , GI.Gtk.Declarative.Adwaita.TabView
+                      , GI.Gtk.Declarative.Adwaita.ToggleGroup
                       , GI.Gtk.Declarative.Adwaita.ToolbarView
   build-depends:        base                    >=4.10 && <5
                       , gi-adwaita              >=1    && <2
@@ -63,5 +66,6 @@ test-suite gi-gtk4-declarative-adwaita-tests
   other-modules:     GI.Gtk.Declarative.Adwaita.BinTest
                    , GI.Gtk.Declarative.Adwaita.ContainerTest
                    , GI.Gtk.Declarative.Adwaita.ReferenceTest
+                   , GI.Gtk.Declarative.Adwaita.RowsTest
                    , GI.Gtk.Declarative.Adwaita.TabViewTest
                    , GI.Gtk.Declarative.Adwaita.TestUtils

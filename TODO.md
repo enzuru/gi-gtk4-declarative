@@ -40,6 +40,14 @@ checkout is still in a directory of the old name.
 
 ## Done
 
+- The settings page widgets. `AdwPreferencesGroup` and `AdwActionRow`
+  are containers, and `AdwToggleGroup` is a widget of its own, because
+  what it holds are `AdwToggle` objects rather than widgets. Its
+  `active` is read back off the group before it is set, so a group that
+  drifted from the markup is put back. `tests/gui-toggle.sh` clicks the
+  chosen toggle twice, for real, which is the GTK behavior the widget
+  rests on.
+
 - The loop's asynchrony. `subscriptions` is a function of the state,
   diffed by name after every event, so a file watcher starts and stops
   with the folders it watches. A `Transition` carries a `Cmd`, which is

@@ -4,9 +4,9 @@ This says what was done about `CHANGES-FOR-STONES.md`, and what was not.
 It is written for whoever works on Stones next. Two items were turned
 down. Before you ask for either of them again, read the reasons here.
 
-Everything below is in the library as of the commit that brings this
-file. `nix develop -c make check` passes. That is 147 properties, 32
-examples in the application suite, and the input test.
+Everything below is in the library as of the commit that brings each
+part of it. `nix develop -c make check` passes. That is 158 properties,
+32 examples in the application suite, and two input tests.
 
 ## Done
 
@@ -136,6 +136,79 @@ property straight after building the tree must let the loop turn first.
 
 That is the first of the two things the request offered. The second is
 below.
+
+### 8. The rows and the toggle group
+
+Four of the five are in. `AdwPreferencesGroup` and `AdwActionRow` are
+containers, with `rowPrefix`, `rowSuffix` and a `headerSuffix` slot.
+`AdwToggleGroup` is a widget of its own, with `Toggle`,
+`ToggleGroupParams` and `toggleGroup`, in the shape of the model views.
+`AdwComboRow` waits. It belongs beside the model views rather than
+beside the rows, because what it needs is a model.
+
+Two notes on the shape of it.
+
+`AdwSwitchRow` and `AdwSpinRow` needed nothing. They are leaf widgets
+with properties, so `widget Adw.SwitchRow [#title := "Sound", #active
+:= on]` worked already. A list box takes them, and so does a
+preferences group. The documentation says so now.
+
+A toggle group is not a container in this library's sense. `AdwToggle`
+is a plain GObject rather than a `GtkWidget`, and `IsContainer` hands
+its instance a `Gtk.Widget`. So the toggles are data rather than
+children, matched from one render to the next by a name each.
+
+The reason given for the item was right, and this widget goes one step
+further than the reason asked for. `active` is read back off the group
+before it is set. A group that says something the markup does not is
+put back, however it got there. The tests cover a click that GTK
+refuses, through `tests/gui-toggle.sh`, and a group that drifted some
+other way, through a patch that changes nothing.
+
+## Item 9, for you to decide on
+
+This is not a request from Stones. It is what item 8 turned up, written
+here because the answer is yours rather than ours.
+
+The toggle button that does not hold together is one case of something
+general. A property is compared declared-to-declared in this library.
+`updateProperties` reads what the markup said last time and what it
+says now. It sets the widget only where the two differ. It never asks
+the widget what it holds.
+
+So any widget that a person can change drifts the same way. A
+`GtkEntry` whose `#text` comes from the state is the common one. The
+markup says "hello", somebody types, and the entry says "hello world".
+The update declines the change, or rounds it, or is slow, and the next
+markup says "hello" again. The declared value did not change, so
+nothing is set, and the entry keeps the typing. Switch rows, spin rows
+and check buttons are all shaped like that.
+
+The general fix is to compare the declared value with the value the
+widget holds, rather than with the declared value of the render before.
+`CollectedProperty` carries `Eq setValue` already, so the comparison is
+writable.
+
+Two things stand in the way, and both are about cost.
+
+A property has to be readable for this, and not every property is.
+`AttrOp` covers properties that are set only, so the fix applies to the
+ones that can be got and leaves the rest as they are.
+
+It costs a read per patched property per patch. Cellar's grid patches
+about six hundred cells, and it is the program that measures this
+library. The cost is small per property and it is not nothing at six
+hundred, so the numbers have to come before the change.
+
+A smaller version is available, and it is perhaps the right one. Add an
+attribute, rather than changing every property. `holding (#text := s)`
+says that this one property is a value the widget must not drift from.
+A program then pays for the properties it knows about, and pays nothing
+anywhere else.
+
+The toggle group does the widget-shaped version of this already, for
+one property of one widget. That was cheap, because a toggle group has
+one value to read.
 
 ## Not done
 

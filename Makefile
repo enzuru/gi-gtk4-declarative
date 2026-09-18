@@ -54,7 +54,7 @@ XVFB := xvfb-run -s "-screen 0 1280x1024x24"
 # under a bus of its own.
 DBUS := dbus-run-session --
 
-.PHONY: all build examples check check-lib check-adwaita check-app check-input bench coverage docs clean
+.PHONY: all build examples check check-lib check-adwaita check-app check-input check-toggle bench coverage docs clean
 
 # One compiler at a time. Each call below loads the whole gi-gtk
 # interface, so `make -j` multiplies the memory rather than dividing the
@@ -83,8 +83,10 @@ build:
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/HeaderBar.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/References.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Rows.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Slots.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/TabView.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToggleGroup.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToolbarView.hs \
 	  $(GHC_RTS)
 
@@ -96,7 +98,7 @@ examples:
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
 	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
-check: check-lib check-adwaita check-app check-input
+check: check-lib check-adwaita check-app check-input check-toggle
 
 # The library's own suite: patching, custom widgets, every container,
 # and the menus.
@@ -199,6 +201,21 @@ coverage:
 	  --srcdir=. --per-module --exclude=Main $(NOT_MEASURED) \
 	  | grep -B1 'expressions used' | grep -v '^--$$' | paste - - \
 	  | sed 's/-----//g' | sort -t'(' -k2 -n
+
+# A click on a toggle group, driven with real X11 input.
+#
+# The reason that widget is in this library is a claim about GTK: a
+# click cannot turn the chosen toggle off. Nothing can synthesise a
+# click, so this clicks one for real and reads the group back.
+check-toggle: $(BUILD)/toggle-app
+	$(XVFB) tests/gui-toggle.sh $(BUILD)/toggle-app
+
+$(BUILD)/toggle-app: $(SOURCES) $(ADWTEST)/ToggleApp.hs
+	@mkdir -p $(BUILD)
+	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(PACKAGES) -threaded \
+	  -main-is ToggleApp.main \
+	  -outputdir $(BUILD)/toggle-app-objects -o $@ $(ADWTEST)/ToggleApp.hs \
+	  $(GHC_RTS)
 
 # How long patching takes. Not part of `make check`: it measures rather
 # than checks, and it takes minutes rather than seconds.
