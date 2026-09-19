@@ -31,6 +31,18 @@ runUI ma = do
 settle :: MonadIO m => m ()
 settle = runUI (pure ())
 
+-- | Let the main loop run for this many milliseconds, and come back
+-- when they are up.
+--
+-- Libadwaita animates some widgets on and off, and a button that is
+-- activated rather than pressed reports after a wait of GTK's own, so
+-- a test that drives one of those waits for a time rather than for the
+-- loop to go quiet.
+pause :: MonadIO m => Int -> m ()
+pause milliseconds = do
+  liftIO (threadDelay (milliseconds * 1000))
+  settle
+
 patch'
   :: Patchable widget => SomeState -> widget e1 -> widget e2 -> IO SomeState
 patch' state markup1 markup2 = case patch state markup1 markup2 of
