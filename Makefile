@@ -93,6 +93,7 @@ build:
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Rows.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Slots.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/TabView.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToastOverlay.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToggleGroup.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ToolbarView.hs \
 	  $(GHC_RTS)

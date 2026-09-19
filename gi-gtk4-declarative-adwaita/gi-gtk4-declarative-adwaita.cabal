@@ -30,6 +30,7 @@ library
                       , GI.Gtk.Declarative.Adwaita.Rows
                       , GI.Gtk.Declarative.Adwaita.Slots
                       , GI.Gtk.Declarative.Adwaita.TabView
+                      , GI.Gtk.Declarative.Adwaita.ToastOverlay
                       , GI.Gtk.Declarative.Adwaita.ToggleGroup
                       , GI.Gtk.Declarative.Adwaita.ToolbarView
   build-depends:        base                    >=4.10 && <5
@@ -67,5 +68,6 @@ test-suite gi-gtk4-declarative-adwaita-tests
                    , GI.Gtk.Declarative.Adwaita.ContainerTest
                    , GI.Gtk.Declarative.Adwaita.ReferenceTest
                    , GI.Gtk.Declarative.Adwaita.RowsTest
+                   , GI.Gtk.Declarative.Adwaita.ToastTest
                    , GI.Gtk.Declarative.Adwaita.TabViewTest
                    , GI.Gtk.Declarative.Adwaita.TestUtils

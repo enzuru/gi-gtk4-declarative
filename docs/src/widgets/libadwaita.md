@@ -273,6 +273,60 @@ it, and that never asks.
 `onReordered` reports every key, in their new order, when somebody
 drags a tab somewhere else.
 
+## Messages over a window
+
+`AdwToastOverlay` shows a message over whatever the window holds. A
+toast is a thing that happens, and markup says what holds, so each
+toast carries a name of your own choosing:
+
+``` haskell
+toastOverlay []
+  (defaultToastOverlayParams (theContents model))
+    { toasts = [ (toast (messageKey m) (messageText m))
+                   { onDismissed = Just (Seen (messageKey m)) }
+               | m <- unreadMessages model
+               ]
+    }
+```
+
+The overlay shows a name it did not show before. A name that was in
+the render before is left alone. A render that happens for some other
+reason therefore does not say the same thing twice. Three messages that arrive
+together are three names, and the overlay shows all three. That is what
+a single slot cannot say.
+
+A name is remembered until it leaves `toasts`. A toast that somebody
+dismissed, or that timed out, is off the screen while its name is still
+in the markup. The overlay does not show it again. To say a thing
+twice, say it under two names. The identifier of the message a program
+reports is usually a name already.
+
+`toast` takes the name and the title. The other three fields carry the
+rest:
+
+`toastButton`
+
+:   A label, and what pressing it reports. A request to take a move
+    back is a toast with an accept on it.
+
+`toastTimeout`
+
+:   Seconds. Zero leaves the toast up until somebody dismisses it,
+    which is what libadwaita means by it. The default is five.
+
+`onDismissed`
+
+:   Reported as the toast leaves the screen, whether somebody
+    dismissed it or it timed out.
+
+The overlay shows one toast at a time and holds the rest in a queue.
+That is libadwaita's own behavior. A program that adds three toasts at
+once sees them one after another, in the order the vector is in.
+
+The child is in the parameters rather than under a
+[`bin`](bins.md), because the toasts are parameters too. An overlay
+with nothing to say is still `bin Adw.ToastOverlay [] child`.
+
 ## The rows
 
 `Adw.ActionRow`, `Adw.PreferencesRow`, and the rows like them are
