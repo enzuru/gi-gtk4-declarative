@@ -27,6 +27,7 @@ library
   exposed-modules:      GI.Gtk.Declarative.Adwaita.Bin
                       , GI.Gtk.Declarative.Adwaita.HeaderBar
                       , GI.Gtk.Declarative.Adwaita.References
+                      , GI.Gtk.Declarative.Adwaita.ComboRow
                       , GI.Gtk.Declarative.Adwaita.Rows
                       , GI.Gtk.Declarative.Adwaita.Slots
                       , GI.Gtk.Declarative.Adwaita.TabView
@@ -65,6 +66,7 @@ test-suite gi-gtk4-declarative-adwaita-tests
   ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
   default-language:  Haskell2010
   other-modules:     GI.Gtk.Declarative.Adwaita.BinTest
+                   , GI.Gtk.Declarative.Adwaita.ComboRowTest
                    , GI.Gtk.Declarative.Adwaita.ContainerTest
                    , GI.Gtk.Declarative.Adwaita.ReferenceTest
                    , GI.Gtk.Declarative.Adwaita.RowsTest

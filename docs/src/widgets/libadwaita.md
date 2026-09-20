@@ -150,6 +150,48 @@ test in this repository clicks twice to make sure of. `active` is also
 read back off the group before it is set, so a group that has drifted
 from the markup is put back, however it got there.
 
+## One choice out of more than a few
+
+An `AdwComboRow` is the same question at a larger size. Ten choices in
+a row of toggles is a wide row, and ten in a combo row is a row like
+any other:
+
+``` haskell
+comboRow [#title := "Level"]
+  defaultComboRowParams
+    { choices  = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+    , chosen   = Just (levelName state)
+    , onChosen = Just Chose
+    }
+```
+
+A combo row is driven by a `GListModel`, which is an object rather
+than a value. There is nowhere in a view function to build one. So the
+choices are data here too, and the widget keeps the model that goes
+with them.
+
+Each choice has a name and a label. The name is what `chosen` names and
+what `onChosen` answers with. The label is what a person reads, and the
+two are apart because a label is text that changes: a translation, a
+rename, a number that is formatted another way. `choice "9" "9x9"`
+writes one. A choice whose label is its name is the string itself, as
+in the ten levels above.
+
+`chosen` is read off the row before it is set. A row that drifted from
+the markup is put back, the way a toggle group is. A choice the markup
+asked for does not come back as an event.
+
+A row is an `AdwActionRow`. So `#title`, `#subtitle` and
+`#useSubtitle` are ordinary properties of it, and it sits in an
+`AdwPreferencesGroup` beside the rows that are there already.
+
+One thing to know about `chosen`. A combo row with choices in it always
+sits on one of them. The selection model libadwaita builds picks the
+first choice by itself, and no part of `AdwComboRow` asks it not to.
+So `Nothing` leaves the choice to the row rather than emptying it. A
+name that is in no choice leaves the row where it is. A program that
+takes a choice away names one of the rest in the same render.
+
 ## The bars of a toolbar view
 
 A toolbar view holds its content as a child, and one bar at each end in
