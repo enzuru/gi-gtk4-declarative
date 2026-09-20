@@ -10,6 +10,8 @@ import           System.IO
 
 import qualified GI.Gtk.Declarative.Adwaita.BinTest
                                                as BinTest
+import qualified GI.Gtk.Declarative.Adwaita.ComboRowTest
+                                               as ComboRowTest
 import qualified GI.Gtk.Declarative.Adwaita.ContainerTest
                                                as ContainerTest
 import qualified GI.Gtk.Declarative.Adwaita.ReferenceTest
@@ -36,6 +38,7 @@ main = do
   _        <- forkOS $ do
     results <- sequence
       [ BinTest.tests
+      , ComboRowTest.tests
       , ContainerTest.tests
       , ReferenceTest.tests
       , RowsTest.tests

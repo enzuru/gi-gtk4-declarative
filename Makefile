@@ -88,6 +88,7 @@ build:
 	ghc -fno-code -i$(LIB) -i$(ADWAITA) $(WARNINGS) $(PACKAGES) \
 	  -outputdir $(BUILD)/adwaita-objects \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
+	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ComboRow.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/HeaderBar.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/References.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Rows.hs \
