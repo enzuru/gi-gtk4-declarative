@@ -17,6 +17,7 @@
 # They belong to a conversation rather than to the library.
 /CHANGES-FOR-*.md
 /ANSWERS-FOR-*.md
+/PROFILE-FROM-*.prof
 
 # Profiling and flamegraphs
 /gi-gtk-*.prof
