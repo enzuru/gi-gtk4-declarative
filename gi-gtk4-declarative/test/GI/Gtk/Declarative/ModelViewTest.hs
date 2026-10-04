@@ -498,15 +498,16 @@ prop_a_view_scrolls_where_it_is_told = withTests 1 . property $ do
     frames
     atRest'   <- runUI (valueOf scroller)
     _         <- runUI (patch' state (markup Nothing) (markup (Just 150)))
-    frames
-    scrolled' <- runUI (valueOf scroller)
+    -- A list view carries a scroll out on a frame of its own, and the
+    -- suite runs its properties together, so this waits for the thing
+    -- to happen rather than for a length of time.
+    scrolled' <- waitingFor (valueOf scroller) (> 0)
     -- The same command again, which is not a new command.
     _         <- runUI (patch' state (markup (Just 150)) (markup (Just 150)))
     frames
     again'    <- runUI (valueOf scroller)
     _         <- runUI (patch' state (markup (Just 150)) (markup (Just 0)))
-    frames
-    back'     <- runUI (valueOf scroller)
+    back'     <- waitingFor (valueOf scroller) (== 0)
     runUI (Gtk.windowDestroy window)
     pure (atRest', scrolled', again', back')
   atRest === 0
@@ -578,6 +579,24 @@ frames = do
   settle
   liftIO (threadDelay 300000)
   settle
+
+-- | Read this until it says what is wanted, or until three seconds go
+-- by, and hand back the last thing it said.
+--
+-- Hedgehog runs the properties of a module together, and GTK carries
+-- some things out on a frame of its own, so a test that waits for a
+-- length of time waits for the wrong thing: the length that is enough
+-- on a quiet machine is not enough on a busy one.
+waitingFor :: (Eq a, MonadIO m) => IO a -> (a -> Bool) -> m a
+waitingFor read' wanted = go (60 :: Int)
+ where
+  go left = do
+    found <- runUI read'
+    if wanted found || left <= 0
+      then pure found
+      else do
+        liftIO (threadDelay 50000)
+        go (left - 1)
 
 -- | Where a scrolled window is scrolled to.
 valueOf :: Gtk.ScrolledWindow -> IO Double
@@ -1100,5 +1119,17 @@ rowButtons view = do
 
 -- * Test collection
 
+-- | One property at a time.
+--
+-- These properties drive one GTK main loop and one display between
+-- them, and some of what they drive happens on a frame of GTK's own: a
+-- scroll a list view was asked for, an animation, a button that was
+-- activated rather than pressed. Run together, a property can lose
+-- what it asked for while another one is presenting or destroying a
+-- window, which is a failure that says nothing about the library.
+--
+-- Nothing is lost by this. Every widget call in here goes through
+-- 'runUI', which puts it on the main loop and waits, so the work was
+-- never running in parallel. Only the waiting was.
 tests :: IO Bool
-tests = checkParallel $$(discover)
+tests = checkSequential $$(discover)

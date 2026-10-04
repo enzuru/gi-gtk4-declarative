@@ -267,5 +267,9 @@ buttonsBelow overlay = do
   buttons <- traverse (Gtk.castTo Gtk.Button) widgets
   pure (foldr (\x xs -> maybe xs (: xs) x) [] buttons)
 
+-- | One property at a time, for the reason the core suite's model-view
+-- tests give: a toast lasts for a length of time and is animated on
+-- and off, so a property that waits for one is a property that can be
+-- starved by the others.
 tests :: IO Bool
-tests = checkParallel $$(discover)
+tests = checkSequential $$(discover)
