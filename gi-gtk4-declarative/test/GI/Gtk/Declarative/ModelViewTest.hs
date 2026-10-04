@@ -22,12 +22,14 @@ import           Control.Monad.IO.Class         ( MonadIO
                                                 )
 import           Control.Monad                  ( foldM )
 import           Data.Int                       ( Int32 )
+import           Data.IORef
 import           Data.Maybe                     ( mapMaybe )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as Text
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
 import           Data.GI.Base.GVariant          ( toGVariant )
+import           System.IO.Unsafe               ( unsafePerformIO )
 import           Data.Word                      ( Word32 )
 import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
@@ -957,6 +959,137 @@ prop_activating_a_row_emits = withTests 1 . property $ do
     pure (found', events')
   found === True
   events === [Activated 1]
+
+-- * What the comparison costs
+
+-- | Four columns over the same item, with a comparison that counts how
+-- often it is asked.
+countedCells :: IORef Int -> Vector Text -> Widget Event
+countedCells counter items = columnView
+  []
+  (defaultColumnViewParams
+      (Vector.fromList
+        [ column
+            key
+            key
+            (\text -> widget Gtk.Label [#label := (key <> "-" <> text)])
+        | key <- ["a", "b", "c", "d"]
+        ]
+      )
+    )
+    { ColumnView.rows         = items
+    , ColumnView.rowUnchanged = Just (counting counter)
+    }
+
+-- | A comparison that counts how often a view asks it.
+--
+-- The function a view takes is pure, and the count is what the test
+-- below is about, so the counting happens the one way a pure function
+-- can count. Nothing outside this file does that.
+{-# NOINLINE counting #-}
+counting :: IORef Int -> Text -> Text -> Bool
+counting counter before now =
+  unsafePerformIO (modifyIORef' counter (+ 1) >> pure (before == now))
+
+sheetRows :: Vector Text
+sheetRows = Vector.fromList
+  ["row-" <> Text.pack (show row) | row <- [0 .. 5 :: Int]]
+
+-- | The comparison is asked once per row on screen, not once per cell
+-- of it.
+--
+-- A column view keeps a record per cell, and every answer compares a
+-- whole row, so asking per cell does work that grows with the square
+-- of the columns. From outside, a view that asks too often shows
+-- exactly what a view that asks once shows, so the count is the only
+-- thing that says which one this is.
+--
+-- The count is held against the cells on screen rather than against a
+-- figure, because how many rows fit in a window is GTK's business.
+prop_the_comparison_is_asked_once_per_row = withTests 1 . property $ do
+  (asked, cells) <- evalIO $ do
+    counter <- newIORef 0
+    let before = countedCells counter sheetRows
+        after  = countedCells counter (sheetRows Vector.// [(0, "CHANGED")])
+    (window, state, view) <- runUI $ do
+      state'   <- create before
+      view'    <- someStateWidget state'
+      window'  <- Gtk.new Gtk.Window
+                          [#defaultWidth Gtk.:= 400, #defaultHeight Gtk.:= 300]
+      scroller <- Gtk.new Gtk.ScrolledWindow []
+      Gtk.scrolledWindowSetChild scroller (Just view')
+      Gtk.windowSetChild window' (Just scroller)
+      Gtk.windowPresent window'
+      pure (window', state', view')
+    settle
+    -- A bind never asks the comparison, so what is counted from here
+    -- is the patch and nothing else.
+    writeIORef counter 0
+    _      <- runUI (patch' state before after)
+    settle
+    asked' <- readIORef counter
+    labels <- runUI (rowLabels view)
+    runUI (Gtk.windowDestroy window)
+    -- The four column titles are labels too.
+    pure (asked', length labels - 4)
+  -- More than one row is on screen, so the ratio below says something.
+  (asked > 1) === True
+  asked * 4 === cells
+
+-- | Four columns whose labels are the item and a suffix the item does
+-- not hold, so a cell that was drawn again can be told from one that
+-- was left alone.
+suffixedCells :: Vector Text -> Text -> Widget Event
+suffixedCells items suffix = columnView
+  []
+  (defaultColumnViewParams
+      (Vector.fromList
+        [ column key key (\text -> widget Gtk.Label [#label := (text <> suffix)])
+        | key <- ["a", "b", "c", "d"]
+        ]
+      )
+    )
+    { ColumnView.rows         = items
+    , ColumnView.rowUnchanged = Just (==)
+    }
+
+-- | The answer is about a row, so it reaches every cell of that row.
+--
+-- One answer per row is what the test above counts. This is the other
+-- half of it: the cells of the row the answer was about are all drawn
+-- again, and the cells of the rows it was not about are all left
+-- alone. The suffix is something the item does not hold, so a cell
+-- that was drawn again says so.
+prop_every_cell_of_a_changed_row_is_drawn_again =
+  withTests 1 . property $ do
+    labels <- evalIO $ renderViews
+      [ suffixedCells sheetRows ""
+      , suffixedCells (sheetRows Vector.// [(0, "CHANGED")]) "!"
+      ]
+      rowLabels
+    -- The four column titles, then the rows, four cells at a time.
+    take 4 (drop 4 labels) === replicate 4 "CHANGED!"
+    take 4 (drop 8 labels) === replicate 4 "row-1"
+
+-- | A row whose cells were taken away and given back shows the item
+-- the vector holds now.
+--
+-- What a row was last drawn from is kept by index, and an index with
+-- no cell left is dropped from that. So the row that comes back is
+-- drawn from the vector rather than compared against something
+-- remembered from before it went.
+--
+-- Shrinking the vector is how a test takes a row's cells away. Nothing
+-- scrolls out of sight here: a list widget under Xvfb realizes every
+-- row it has, however small the window is.
+prop_a_row_that_came_back_shows_the_new_item = withTests 1 . property $ do
+  labels <- evalIO $ renderViews
+    [ suffixedCells sheetRows ""
+    , suffixedCells (Vector.take 3 sheetRows) ""
+    , suffixedCells (sheetRows Vector.// [(4, "LATER")]) ""
+    ]
+    rowLabels
+  take 4 (drop 20 labels) === replicate 4 "LATER"
 
 -- | The buttons in the rows on screen.
 rowButtons :: Gtk.Widget -> IO [Gtk.ToggleButton]

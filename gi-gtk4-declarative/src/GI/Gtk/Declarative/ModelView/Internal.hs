@@ -2,6 +2,8 @@
 -- which GHC would rather saw spelled out as descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE MultiWayIf          #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -45,7 +47,9 @@ module GI.Gtk.Declarative.ModelView.Internal
   )
 where
 
-import           Control.Monad                  ( when )
+import           Control.Monad                  ( unless
+                                                , when
+                                                )
 import           Data.Foldable                  ( for_ )
 import           Data.GI.Base                   ( withManagedPtr )
 import           Data.HashMap.Strict            ( HashMap )
@@ -56,6 +60,8 @@ import qualified Data.Text                     as Text
 import qualified Data.Text.Read                as Text
 import           Data.Vector                    ( Vector )
 import qualified Data.Vector                   as Vector
+import qualified Data.Vector.Unboxed.Mutable   as Mutable
+import           Data.Word                      ( Word8 )
 import           Foreign.Ptr                    ( castPtr
                                                 , ptrToWordPtr
                                                 )
@@ -68,13 +74,15 @@ import           GI.Gtk.Declarative.Patch
 import           GI.Gtk.Declarative.State
 import           GI.Gtk.Declarative.Widget
 
--- | One realized row.
+-- | One realized row, which in a column view is one cell of one.
 data Row item event = Row
   { rowMarkup :: Widget event
   -- ^ What this row currently shows.
   , rowItem   :: item
   -- ^ The item it was drawn from, which is what says whether it has to
-  -- be drawn again.
+  -- be drawn again. The cells of a row hold items the comparison calls
+  -- the same, so any one of them answers for the whole row: see
+  -- 'rebindRows'.
   , rowState  :: SomeState
   -- ^ The state of the widget showing it.
   , rowIndex  :: Int
@@ -339,28 +347,92 @@ rebindRows state = do
   items     <- readIORef (viewItems state)
   renderers <- readIORef (viewRenderers state)
   unchanged <- readIORef (viewUnchanged state)
-  for_ (HashMap.toList rows) $ \(key, row) ->
-    for_ ((,) <$> items Vector.!? rowIndex row
-              <*> HashMap.lookup (rowColumn row) renderers)
-      $ \(value, render) ->
-          case unchanged of
-            Just same | same (rowItem row) value -> pure ()
-            _                                    -> do
-              let markup = render value
-              rowCancel row
-              newState <- case patch (rowState row) (rowMarkup row) markup of
-                Modify  modify    -> modify
-                Keep              -> pure (rowState row)
-                Replace createNew -> do
-                  created <- createNew
-                  cellSetChild (rowCell row) . Just =<< someStateWidget created
-                  pure created
-              cancelRow <- subscribeRow state markup newState
-              modifyIORef'
-                (viewRows state)
-                (HashMap.insert key row { rowMarkup = markup
-                                        , rowItem   = value
-                                        , rowState  = newState
-                                        , rowCancel = cancelRow
-                                        }
-                )
+  let
+    -- What a cell shows now, and the renderer that would draw it.
+    -- Either can be missing: the vector may be shorter than it was,
+    -- and the column may have gone.
+    cellOf row =
+      (,)
+        <$> items
+        Vector.!?         rowIndex row
+        <*> HashMap.lookup (rowColumn row) renderers
+    drawCell key row value render = do
+      let markup = render value
+      rowCancel row
+      newState <- case patch (rowState row) (rowMarkup row) markup of
+        Modify  modify    -> modify
+        Keep              -> pure (rowState row)
+        Replace createNew -> do
+          created <- createNew
+          cellSetChild (rowCell row) . Just =<< someStateWidget created
+          pure created
+      cancelRow <- subscribeRow state markup newState
+      modifyIORef'
+        (viewRows state)
+        (HashMap.insert key row { rowMarkup = markup
+                                , rowItem   = value
+                                , rowState  = newState
+                                , rowCancel = cancelRow
+                                }
+        )
+  case (unchanged, rowsOnScreen rows) of
+    -- A view with no comparison draws every row on screen, and works
+    -- nothing out.
+    (Nothing, _) -> for_ (HashMap.toList rows)
+      $ \(key, row) -> for_ (cellOf row) (uncurry (drawCell key row))
+    (Just _   , Nothing) -> pure ()
+    -- A list view, or a column view of one column, keeps a record per
+    -- row rather than per cell. Asking per cell is asking per row
+    -- there, and there is nothing to remember.
+    (Just same, Just _ ) | HashMap.size renderers <= 1 ->
+      for_ (HashMap.toList rows) $ \(key, row) ->
+        for_ (cellOf row) $ \(value, render) ->
+          unless (same (rowItem row) value) (drawCell key row value render)
+    -- Several columns, so the answer about a row is worked out once
+    -- and kept for the other cells of that row.
+    (Just same, Just (lowest, highest)) -> do
+      answers <- Mutable.replicate (highest - lowest + 1) unasked
+      for_ (HashMap.toList rows) $ \(key, row) ->
+        for_ (cellOf row) $ \(value, render) -> do
+          -- The slot is in range: the array spans every index in the
+          -- map, and this row is in the map.
+          let slot = rowIndex row - lowest
+          asked <- Mutable.unsafeRead answers slot
+          if
+            | asked == leaveAlone -> pure ()
+            | asked == mustDraw -> drawCell key row value render
+            | same (rowItem row) value -> Mutable.unsafeWrite answers
+                                                              slot
+                                                              leaveAlone
+            | otherwise -> do
+              Mutable.unsafeWrite answers slot mustDraw
+              drawCell key row value render
+
+-- | The answers an array of them holds, which is one of three things:
+-- a row nobody has asked about yet, a row to draw, and a row to leave
+-- alone.
+unasked, mustDraw, leaveAlone :: Word8
+unasked = 0
+mustDraw = 1
+leaveAlone = 2
+
+-- | The lowest and the highest row on screen, which is how long the
+-- array of answers has to be.
+--
+-- A view shows a stretch of rows, so the array is as long as a window
+-- rather than as long as a sheet. Nothing is on screen in a view with
+-- no rows, and then there is nothing to ask about.
+--
+-- The records are folded over twice rather than listed once, because a
+-- list of them is an allocation per cell and this is per patch.
+rowsOnScreen :: HashMap Word (Row item event) -> Maybe (Int, Int)
+rowsOnScreen rows
+  | HashMap.null rows = Nothing
+  | otherwise         = Just (lowest, highest)
+ where
+  lowest  = HashMap.foldl' (\reached row -> min reached (rowIndex row))
+                           maxBound
+                           rows
+  highest = HashMap.foldl' (\reached row -> max reached (rowIndex row))
+                           minBound
+                           rows

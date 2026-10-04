@@ -137,6 +137,66 @@ rowsOf :: Int -> Int -> Vector Text
 rowsOf count from =
   Vector.fromList [ pack (show (from + index)) | index <- [1 .. count] ]
 
+-- | A window showing a sheet of the shape a spreadsheet has: an item
+-- per row holding a cell per column, and a comparison over the whole
+-- of it.
+--
+-- This is what the comparison costs in a program rather than in a
+-- micro-benchmark. Comparing a row is as much work as the row is wide,
+-- so asking the question once per cell of a row does the work of a
+-- whole sheet on every patch.
+wideSheetOf
+  :: Int
+  -> Int
+  -> Vector (Vector Text)
+  -> IO (SomeState, Vector (Vector Text) -> Widget ())
+wideSheetOf theRows theColumns items = do
+  let sheet :: Vector (Vector Text) -> Widget ()
+      sheet value = columnView
+        []
+        (defaultColumnViewParams
+            (Vector.fromList
+              [ column
+                  (pack (show index))
+                  (pack (show index))
+                  (\row -> widget
+                    Label
+                    [#label := maybe "" id (row Vector.!? index)]
+                  )
+              | index <- [0 .. theColumns - 1]
+              ]
+            )
+          )
+          { rows         = value
+          , rowUnchanged = Just (==)
+          }
+  state <- runUI $ do
+    state'   <- create (sheet items)
+    view     <- someStateWidget state'
+    window   <- Gtk.new
+      Gtk.Window
+      [#defaultWidth Gtk.:= 1200, #defaultHeight Gtk.:= 900]
+    scroller <- Gtk.new Gtk.ScrolledWindow []
+    Gtk.scrolledWindowSetChild scroller (Just view)
+    Gtk.windowSetChild window (Just scroller)
+    Gtk.windowPresent window
+    pure state'
+  threadDelay 1000000
+  _ <- runUI (pure ())
+  pure (state, sheet)
+ where
+  _unused = theRows
+
+-- | A sheet of this many rows, each a row of this many cells.
+sheetOf :: Int -> Int -> Int -> Vector (Vector Text)
+sheetOf theRows theColumns from = Vector.fromList
+  [ Vector.fromList
+      [ pack (show (from + row) <> "-" <> show cell)
+      | cell <- [1 .. theColumns]
+      ]
+  | row <- [1 .. theRows]
+  ]
+
 main :: IO ()
 main = do
   Gtk.init
@@ -165,6 +225,18 @@ main = do
         allChanged  = rowsOf 100 1000
     (viewState, viewMarkup) <- columnViewOf 100 10 firstRows
     viewCell                <- newIORef viewState
+
+    -- A sheet of the shape a spreadsheet has: a hundred rows of
+    -- twenty-six cells, compared whole.
+    let firstSheet  = sheetOf 100 26 0
+        sheetOneRow = firstSheet Vector.// [(0, Vector.replicate 26 "changed")]
+    (sheetState, sheetMarkup) <- wideSheetOf 100 26 firstSheet
+    sheetCell                 <- newIORef sheetState
+    let patchSheetBothWays changed = do
+          state  <- readIORef sheetCell
+          state' <- testPatch state (sheetMarkup firstSheet) (sheetMarkup changed)
+          writeIORef sheetCell
+            =<< testPatch state' (sheetMarkup changed) (sheetMarkup firstSheet)
     -- Patch the view to these rows and back again, so that the view is
     -- where it started when the measurement ends.
     let patchBothWays compared changed = do
@@ -211,6 +283,12 @@ main = do
         , bench "100 rows, every one changed, rows compared"
         . whnfIO
         $ patchBothWays True allChanged
+        ]
+      , bgroup
+        "wide sheet"
+        [ bench "100 rows of 26 cells, one row changed, rows compared"
+            . whnfIO
+            $ patchSheetBothWays sheetOneRow
         ]
       ]
     GLib.mainLoopQuit mainLoop

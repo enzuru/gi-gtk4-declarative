@@ -101,6 +101,17 @@ subscribed to again. On a view of a hundred rows of ten columns, a patch
 that changes one row costs 1.7 ms with the comparison and 22 ms without
 it.
 
+A column view keeps a record per cell, and the question is about a row.
+So it is asked once per row rather than once per cell of one. That
+matters as the columns grow. Comparing a row is as much work as the row
+is wide. A sheet of twenty-six columns asked the question
+twenty-six times for each row. That is the work of a whole sheet to
+save drawing one cell.
+
+Which cell of a row answers does not matter: every cell of a row was
+drawn from an item the comparison called the same, so all of them
+answer alike.
+
 This is a promise about the renderer: that it reads its item and nothing
 else. Here is what breaking it looks like, because the failure is quiet.
 The rows are row numbers, and the renderer reaches past them for what it
