@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | An application for the input test.
 --
 -- Keys, clicks, and pointer motion arrive through event controllers,

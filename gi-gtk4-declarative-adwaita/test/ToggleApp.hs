@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | A window holding one toggle group, for the input test.
 --
 -- The reason a toggle group is in this library is a claim about GTK: a

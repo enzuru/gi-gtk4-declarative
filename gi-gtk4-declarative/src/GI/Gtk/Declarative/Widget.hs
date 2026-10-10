@@ -1,4 +1,3 @@
-
 -- | A 'Widget' value can wrap any 'Patchable' widget, hiding the underlying
 -- widget type, such that you can embed heterogeneous collections of widgets in
 -- containers.

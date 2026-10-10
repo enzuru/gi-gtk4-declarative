@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Example of a stack, a header bar, and a switcher that points at the
 -- stack.
 --

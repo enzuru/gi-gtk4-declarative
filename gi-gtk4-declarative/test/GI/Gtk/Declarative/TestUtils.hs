@@ -1,6 +1,4 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module GI.Gtk.Declarative.TestUtils where
 

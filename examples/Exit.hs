@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Exit where
 
 import           Control.Concurrent             ( threadDelay )

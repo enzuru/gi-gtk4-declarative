@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- | Internal helpers for applying attributes and signal handlers to GTK+
 -- widgets.
 module GI.Gtk.Declarative.Attributes.Collected

@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
 -- | Example of a column view.
 --
 -- A column view takes its rows as data and a way to render one cell of

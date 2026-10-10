@@ -1,6 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TypeFamilies     #-}
 
 -- | A declarative representation of a widget with exactly one child.
 --

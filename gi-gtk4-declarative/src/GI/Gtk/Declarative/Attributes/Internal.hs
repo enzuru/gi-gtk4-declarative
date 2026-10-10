@@ -1,7 +1,5 @@
 -- 'controllerName' names its type only in a constraint, and is called
 -- with a type application, which is what the first pragma is for.
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE OverloadedStrings   #-}
 
 -- | Internal helpers for applying attributes and signal handlers to GTK
 -- widgets.

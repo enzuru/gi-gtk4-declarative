@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | A declarative @AdwComboRow@: one choice out of more than a few.
 --
 -- @

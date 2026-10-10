@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TypeFamilies     #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
 -- | Implementations for widgets with zero or more children.

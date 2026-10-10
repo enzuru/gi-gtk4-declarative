@@ -1,9 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE TypeFamilies     #-}
-
 -- | Attribute lists on declarative objects, supporting the underlying
 -- attributes from "Data.GI.Base.Attributes", along with CSS class lists, and
 -- pure and impure event EventHandlers.

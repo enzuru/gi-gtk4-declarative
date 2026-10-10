@@ -2,8 +2,6 @@
 -- the classes come from the core and the widgets from gi-adwaita.
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE RecordWildCards #-}
-
 -- | @AdwToolbarView@ as a declarative container.
 --
 -- A toolbar view holds a content widget, any number of bars above it,

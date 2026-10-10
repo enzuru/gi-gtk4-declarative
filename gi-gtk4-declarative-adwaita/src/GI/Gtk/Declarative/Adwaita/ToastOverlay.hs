@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | A declarative @AdwToastOverlay@: the messages a window has to
 -- deliver, over whatever it is showing.
 --

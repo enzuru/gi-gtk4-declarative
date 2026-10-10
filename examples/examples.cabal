@@ -53,4 +53,8 @@ executable example
                       , text                          >=1.2  && <2.2
                       , vector                        >=0.12 && <0.14
   default-language:     GHC2024
+  default-extensions:   OverloadedLabels
+                        OverloadedLists
+                        OverloadedStrings
+                        RecordWildCards
   ghc-options:          -O2 -Wall -threaded

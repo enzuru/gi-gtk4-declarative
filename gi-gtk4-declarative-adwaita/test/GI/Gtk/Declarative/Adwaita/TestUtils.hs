@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | What the libadwaita tests need to talk to GTK. The core package's
 -- suite has a module of the same shape, which this one cannot import:
 -- the two are test directories rather than libraries.

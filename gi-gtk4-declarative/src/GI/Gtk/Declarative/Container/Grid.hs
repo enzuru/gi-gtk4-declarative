@@ -1,6 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RecordWildCards  #-}
 
 -- | Implementation of 'Gtk.Grid' as a declarative container.
 module GI.Gtk.Declarative.Container.Grid

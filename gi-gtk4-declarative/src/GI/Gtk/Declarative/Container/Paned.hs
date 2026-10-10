@@ -1,10 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors -fno-warn-orphans #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TypeFamilies      #-}
-
 -- | Implementation of 'Gtk.Paned' as a declarative container.
 module GI.Gtk.Declarative.Container.Paned
   ( Pane

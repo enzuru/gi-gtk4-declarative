@@ -3,8 +3,6 @@
 -- descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | The libadwaita widgets that point at another widget.
 --
 -- An @AdwTabBar@ shows the tabs of an @AdwTabView@, which it does not

@@ -3,8 +3,6 @@
 -- descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Widget-valued properties of the libadwaita widgets.
 --
 -- An @AdwToolbarView@ holds a content child, which is what

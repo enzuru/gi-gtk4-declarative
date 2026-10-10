@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 -- | Declarative menus.
 --

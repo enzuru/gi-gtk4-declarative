@@ -3,8 +3,6 @@
 -- constraints, which would say the same thing less clearly.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE RecordWildCards #-}
-
 -- | A simple application architecture style inspired by PureScript's Pux
 -- framework.
 module GI.Gtk.Declarative.App.Simple

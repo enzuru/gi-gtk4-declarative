@@ -3,8 +3,6 @@
 -- descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Widgets that point at another widget.
 --
 -- A 'Gtk.StackSwitcher' switches a 'Gtk.Stack', but it does not hold

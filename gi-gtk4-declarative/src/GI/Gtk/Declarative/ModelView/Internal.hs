@@ -2,11 +2,6 @@
 -- which GHC would rather saw spelled out as descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
 -- | The shared machinery behind the model-based views.
 --
 -- A GTK 4 list widget holds no children. It holds a list model and a

@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-
 -- | Example of event controllers.
 --
 -- GTK 4 reports keys, clicks, and pointer motion through controllers

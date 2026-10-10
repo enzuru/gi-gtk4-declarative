@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Example of a dialog-like window.
 --
 -- GTK 4 deprecated @GtkDialog@ along with its response codes, which

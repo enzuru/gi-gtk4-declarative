@@ -2,8 +2,6 @@
 -- the classes come from the core and the widgets from gi-adwaita.
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE RecordWildCards #-}
-
 -- | @AdwHeaderBar@ as a declarative container.
 --
 -- Widgets go at the start or at the end, as they do in a

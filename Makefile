@@ -17,12 +17,28 @@ ADWAITA  := gi-gtk4-declarative-adwaita/src
 ADWTEST  := gi-gtk4-declarative-adwaita/test
 EXAMPLES := examples
 
-# The cabal files say GHC2024, so the direct GHC calls say it too,
-# rather than building against a different default and finding out from
-# cabal later. The edition carries the extensions that every other
-# module declared by hand: GADTs, DataKinds, LambdaCase and the rest of
-# what GHC2021 already had.
-WARNINGS := -Wall -XGHC2024
+# The language edition and the extensions the cabal files name in
+# default-extensions. GHC is called directly here and reads no cabal
+# file, so the same list is spelled out once and passed to every call
+# below. It is the union over the three packages, their tests and the
+# examples: a list that is too generous for one of them compiles the
+# same code, and a list that is short does not compile at all.
+#
+# The edition carries what every module used to declare by hand: GADTs,
+# DataKinds, LambdaCase and the rest of GHC2021. What is here is what
+# no edition carries.
+LANGUAGE := -XGHC2024 \
+  -XAllowAmbiguousTypes -XDefaultSignatures -XFunctionalDependencies \
+  -XMultiWayIf -XOverloadedLabels -XOverloadedLists -XOverloadedStrings \
+  -XRecordWildCards -XTypeFamilies -XUndecidableInstances -XViewPatterns
+
+# The two hedgehog suites find their properties with a splice, and
+# nothing else here does. It is passed where it is needed rather than
+# with the list above, because Template Haskell makes GHC generate code
+# for a build that asked for none, which is what the gate below is.
+SPLICES := -XTemplateHaskell
+
+WARNINGS := -Wall
 
 # Two packages in the dev shell hold a module called GI.Gtk: gi-gtk,
 # which is the one the cabal files name, and gi-gtk4, a copy of it under
@@ -50,7 +66,11 @@ SOURCES := $(shell find $(LIB) $(APP) $(ADWAITA) -name '*.hs')
 # A nested X server, which is all a test needs: the tests drive the
 # widgets from code and read them back, so nothing has to be on screen,
 # but GTK still refuses to start without a display.
-XVFB := xvfb-run -s "-screen 0 1280x1024x24"
+#
+# -a takes a free display number rather than 99. Another program on the
+# machine that runs its own tests under Xvfb takes 99 as well, and two
+# servers on one number is one server and a confused second one.
+XVFB := xvfb-run -a -s "-screen 0 1280x1024x24"
 
 # A GTK or libadwaita CRITICAL is a library being held wrong, and one
 # printed in the middle of a passing test is a thing nobody reads. Two
@@ -82,13 +102,13 @@ all: build
 # call of its own, because nothing in the other two imports it.
 build:
 	@mkdir -p $(BUILD)
-	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) $(PACKAGES) \
+	ghc -fno-code -i$(LIB) -i$(APP) $(WARNINGS) $(LANGUAGE) $(PACKAGES) \
 	  -outputdir $(BUILD)/objects \
 	  $(LIB)/GI/Gtk/Declarative.hs $(APP)/GI/Gtk/Declarative/App/Simple.hs \
 	  $(LIB)/GI/Gtk/Declarative/ModelView/ListView.hs \
 	  $(LIB)/GI/Gtk/Declarative/ModelView/ColumnView.hs \
 	  $(GHC_RTS)
-	ghc -fno-code -i$(LIB) -i$(ADWAITA) $(WARNINGS) $(PACKAGES) \
+	ghc -fno-code -i$(LIB) -i$(ADWAITA) $(WARNINGS) $(LANGUAGE) $(PACKAGES) \
 	  -outputdir $(BUILD)/adwaita-objects \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/Bin.hs \
 	  $(ADWAITA)/GI/Gtk/Declarative/Adwaita/ComboRow.hs \
@@ -106,7 +126,7 @@ build:
 # usable, and a GTK 4 port that does not compile against them is not done.
 examples:
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(EXAMPLES) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(APP) -i$(EXAMPLES) $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/example-objects -o $(BUILD)/example \
 	  $(EXAMPLES)/Main.hs $(GHC_RTS)
 
@@ -119,7 +139,7 @@ check-lib: $(BUILD)/tests
 
 $(BUILD)/tests: $(SOURCES) $(wildcard $(TEST)/*.hs) $(wildcard $(TEST)/GI/Gtk/Declarative/*.hs)
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(TEST) $(WARNINGS) $(LANGUAGE) $(SPLICES) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/test-objects -o $@ $(TEST)/Main.hs $(GHC_RTS)
 
 # The libadwaita widgets, which are a package of their own because the
@@ -129,7 +149,7 @@ check-adwaita: $(BUILD)/adwaita-tests
 
 $(BUILD)/adwaita-tests: $(SOURCES) $(wildcard $(ADWTEST)/*.hs) $(wildcard $(ADWTEST)/GI/Gtk/Declarative/Adwaita/*.hs)
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(LANGUAGE) $(SPLICES) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/adwaita-test-objects -o $@ $(ADWTEST)/Main.hs $(GHC_RTS)
 
 # The application loop: inputs, exits, and exceptions.
@@ -138,7 +158,7 @@ check-app: $(BUILD)/app-tests
 
 $(BUILD)/app-tests: $(SOURCES) $(wildcard $(APPTEST)/*.hs)
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(APP) -i$(APPTEST) $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/app-test-objects -o $@ $(APPTEST)/Main.hs $(GHC_RTS)
 
 # Keys and clicks, driven with real X11 input.
@@ -151,7 +171,7 @@ check-input: $(BUILD)/input-test
 
 $(BUILD)/input-test: $(SOURCES) $(TEST)/InputApp.hs
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) $(PACKAGES) -threaded -main-is InputApp.main \
+	ghc -i$(LIB) -i$(APP) -i$(TEST) $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded -main-is InputApp.main \
 	  -outputdir $(BUILD)/input-test-objects -o $@ $(TEST)/InputApp.hs $(GHC_RTS)
 
 # What the test suites reach, measured with GHC's own coverage.
@@ -177,15 +197,15 @@ coverage:
 	# run, and hpc says so rather than adding the two up.
 	@rm -f $(COVERAGE)/*.tix
 	ghc -fhpc -hpcdir $(COVERAGE)/lib-mix -i$(LIB) -i$(TEST) \
-	  $(WARNINGS) $(PACKAGES) -threaded \
+	  $(WARNINGS) $(LANGUAGE) $(SPLICES) $(PACKAGES) -threaded \
 	  -outputdir $(COVERAGE)/lib-objects -o $(COVERAGE)/lib-tests \
 	  $(TEST)/Main.hs $(GHC_RTS)
 	ghc -fhpc -hpcdir $(COVERAGE)/adwaita-mix -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) \
-	  $(WARNINGS) $(PACKAGES) -threaded \
+	  $(WARNINGS) $(LANGUAGE) $(SPLICES) $(PACKAGES) -threaded \
 	  -outputdir $(COVERAGE)/adwaita-objects -o $(COVERAGE)/adwaita-tests \
 	  $(ADWTEST)/Main.hs $(GHC_RTS)
 	ghc -fhpc -hpcdir $(COVERAGE)/app-mix -i$(LIB) -i$(APP) -i$(APPTEST) \
-	  $(WARNINGS) $(PACKAGES) -threaded \
+	  $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded \
 	  -outputdir $(COVERAGE)/app-objects -o $(COVERAGE)/app-tests \
 	  $(APPTEST)/Main.hs $(GHC_RTS)
 	cd $(COVERAGE) && $(XVFB) ./lib-tests > lib-run.log 2>&1
@@ -224,7 +244,7 @@ check-toggle: $(BUILD)/toggle-app
 
 $(BUILD)/toggle-app: $(SOURCES) $(ADWTEST)/ToggleApp.hs
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(ADWAITA) -i$(ADWTEST) $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded \
 	  -main-is ToggleApp.main \
 	  -outputdir $(BUILD)/toggle-app-objects -o $@ $(ADWTEST)/ToggleApp.hs \
 	  $(GHC_RTS)
@@ -236,7 +256,7 @@ bench: $(BUILD)/bench
 
 $(BUILD)/bench: $(SOURCES) $(BENCH)/Benchmark.hs
 	@mkdir -p $(BUILD)
-	ghc -i$(LIB) -i$(BENCH) $(WARNINGS) $(PACKAGES) -threaded \
+	ghc -i$(LIB) -i$(BENCH) $(WARNINGS) $(LANGUAGE) $(PACKAGES) -threaded \
 	  -outputdir $(BUILD)/bench-objects -o $@ $(BENCH)/Benchmark.hs $(GHC_RTS)
 
 # The documentation site. This one needs the docs shell, which has

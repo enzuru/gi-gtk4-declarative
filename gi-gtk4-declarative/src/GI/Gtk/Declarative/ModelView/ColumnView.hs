@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | A declarative 'Gtk.ColumnView'.
 --
 -- A column view is a list view with more than one cell per row. It

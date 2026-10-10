@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-
 -- | A declarative representation of 'Gtk.Widget' in GTK without children.
 module GI.Gtk.Declarative.SingleWidget
   ( SingleWidget

@@ -88,6 +88,16 @@ library
 
   hs-source-dirs:       src
   default-language:     GHC2024
+  default-extensions:   AllowAmbiguousTypes
+                        DefaultSignatures
+                        FunctionalDependencies
+                        MultiWayIf
+                        OverloadedLabels
+                        OverloadedLists
+                        OverloadedStrings
+                        RecordWildCards
+                        TypeFamilies
+                        UndecidableInstances
   ghc-options:          -Wall
 
 test-suite gi-gtk4-declarative-tests
@@ -114,6 +124,12 @@ test-suite gi-gtk4-declarative-tests
                    , unordered-containers
   ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
   default-language:  GHC2024
+  default-extensions: OverloadedLabels
+                      OverloadedLists
+                      OverloadedStrings
+                      RecordWildCards
+                      TemplateHaskell
+                      ViewPatterns
   other-modules:     GI.Gtk.Declarative.AfterCreatedTest
                    , GI.Gtk.Declarative.BinTest
                    , GI.Gtk.Declarative.ContainerTest
@@ -142,3 +158,6 @@ benchmark gi-gtk4-declarative-bench
                    , vector     >= 0.12     && < 0.14
   ghc-options:       -Wall -threaded
   default-language:  GHC2024
+  default-extensions: OverloadedLabels
+                      OverloadedLists
+                      OverloadedStrings

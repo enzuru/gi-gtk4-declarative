@@ -1,7 +1,3 @@
-{-# LANGUAGE DefaultSignatures      #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE TypeFamilies           #-}
-
 -- | Shared interfaces for containers.
 module GI.Gtk.Declarative.Container.Class
   ( IsContainer(..)

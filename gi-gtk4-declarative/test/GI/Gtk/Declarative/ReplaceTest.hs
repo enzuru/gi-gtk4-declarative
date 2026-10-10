@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 -- | Tests for markup that cannot be patched into the markup that

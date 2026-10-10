@@ -1,7 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TypeFamilies     #-}
 
 -- | Implementation of 'Gtk.Box' as a declarative container.
 module GI.Gtk.Declarative.Container.Box

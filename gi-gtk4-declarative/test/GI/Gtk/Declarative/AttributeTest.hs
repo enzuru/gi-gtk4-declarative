@@ -1,8 +1,3 @@
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 -- | Tests for what an attribute list can hold.

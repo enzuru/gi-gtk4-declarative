@@ -43,21 +43,24 @@ main = do
   -- The tests run off the main loop's thread and talk to GTK through
   -- 'GI.Gtk.Declarative.TestUtils.runUI'.
   _        <- forkOS $ do
-    results <-
-      sequence
-        [ CustomWidget.tests
-        , PatchTest.tests
-        , BinTest.tests
-        , ContainerTest.tests
-        , MenuModelTest.tests
-        , EventControllerTest.tests
-        , ReplaceTest.tests
-        , AttributeTest.tests
-        , SlotTest.tests
-        , ReferenceTest.tests
-        , ModelViewTest.tests
-        , AfterCreatedTest.tests
-        ]
+    -- The signature is what tells a list literal it is a list, which
+    -- OverloadedLists leaves open.
+    let suites :: [IO Bool]
+        suites =
+          [ CustomWidget.tests
+          , PatchTest.tests
+          , BinTest.tests
+          , ContainerTest.tests
+          , MenuModelTest.tests
+          , EventControllerTest.tests
+          , ReplaceTest.tests
+          , AttributeTest.tests
+          , SlotTest.tests
+          , ReferenceTest.tests
+          , ModelViewTest.tests
+          , AfterCreatedTest.tests
+          ]
+    results <- sequence suites
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)
   GLib.mainLoopRun mainLoop

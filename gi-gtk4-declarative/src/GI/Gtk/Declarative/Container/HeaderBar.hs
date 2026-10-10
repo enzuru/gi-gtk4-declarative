@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE RecordWildCards #-}
 
 -- | Implementation of 'Gtk.HeaderBar' as a declarative container.
 module GI.Gtk.Declarative.Container.HeaderBar

@@ -36,15 +36,19 @@ main = do
   mainLoop <- GLib.mainLoopNew Nothing False
   pass     <- newEmptyMVar
   _        <- forkOS $ do
-    results <- sequence
-      [ BinTest.tests
-      , ComboRowTest.tests
-      , ContainerTest.tests
-      , ReferenceTest.tests
-      , RowsTest.tests
-      , ToastTest.tests
-      , TabViewTest.tests
-      ]
+    -- The signature is what tells a list literal it is a list, which
+    -- OverloadedLists leaves open.
+    let suites :: [IO Bool]
+        suites =
+          [ BinTest.tests
+          , ComboRowTest.tests
+          , ContainerTest.tests
+          , ReferenceTest.tests
+          , RowsTest.tests
+          , ToastTest.tests
+          , TabViewTest.tests
+          ]
+    results <- sequence suites
     GLib.mainLoopQuit mainLoop
     putMVar pass (and results)
   GLib.mainLoopRun mainLoop

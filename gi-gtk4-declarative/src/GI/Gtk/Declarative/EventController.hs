@@ -4,9 +4,6 @@
 -- clearly.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Declarative event controllers.
 --
 -- GTK 4 took keys, pointers, and gestures out of the widget's own

@@ -1,7 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Example of choosing a file.
 --
 -- GTK 4 removed @GtkFileChooserButton@, and a file is now chosen with a

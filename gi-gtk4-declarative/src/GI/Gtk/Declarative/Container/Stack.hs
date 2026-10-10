@@ -1,7 +1,4 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- | Implementation of 'Gtk.Stack' as a declarative container.
 module GI.Gtk.Declarative.Container.Stack

@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
 module Main where
 
 import           Control.Concurrent            (newEmptyMVar, putMVar,
@@ -49,8 +46,15 @@ main = hspec $ do
                    , inputs = [yield ThrowError]
                    } `shouldThrow` errorCall "oh no"
       it "when the newly generated event is an exception" $
-        -- Note: forcing the event by pattern matching is important to raise the exception
-        runApp app { update = \s ThrowError -> Transition s (perform (pure (Just (error "oh no"))))
+        -- Note: forcing the event by pattern matching is important to
+        -- raise the exception. The other events are named so that the
+        -- match is a total one, and nothing sends them here.
+        runApp app { update = \s -> \case
+                       ThrowError -> Transition
+                         s
+                         (perform (pure (Just (error "oh no"))))
+                       IncState -> Transition s none
+                       Close    -> Transition s none
                    , inputs = [yield ThrowError]
                    } `shouldThrow` errorCall "oh no"
     -- An application of somebody else's, which is the shape a program

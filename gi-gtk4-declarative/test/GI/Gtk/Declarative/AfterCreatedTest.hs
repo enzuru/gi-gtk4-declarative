@@ -1,8 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 -- | Tests for 'afterCreated'.

@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE TypeFamilies #-}
 module GI.Gtk.Declarative.Attributes.Internal.EventHandler
   ( Purity(..)
   , EventHandlerReturn(..)

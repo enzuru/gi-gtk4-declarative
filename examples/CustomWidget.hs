@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedLists   #-}
-{-# LANGUAGE OverloadedStrings #-}
 module CustomWidget where
 
 import           Control.Monad                  ( void )

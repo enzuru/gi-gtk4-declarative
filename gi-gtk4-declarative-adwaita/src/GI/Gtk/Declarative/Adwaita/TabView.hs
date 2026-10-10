@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedLabels  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | A declarative @AdwTabView@.
 --
 -- A tab view holds pages, and a page holds a widget and a title. Each

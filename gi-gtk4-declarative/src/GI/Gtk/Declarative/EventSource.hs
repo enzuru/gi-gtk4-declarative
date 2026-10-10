@@ -1,4 +1,3 @@
-
 -- | Event handling for declarative widgets.
 module GI.Gtk.Declarative.EventSource
   ( EventSource(..)

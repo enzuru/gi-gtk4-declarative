@@ -1,4 +1,3 @@
-
 -- | The central patching type class of this library.
 module GI.Gtk.Declarative.Patch
   ( Patch(..)

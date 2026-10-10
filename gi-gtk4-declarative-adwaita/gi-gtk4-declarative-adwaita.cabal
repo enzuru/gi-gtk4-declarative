@@ -47,6 +47,9 @@ library
                       , gi-gtk4-declarative     >=0.8  && <0.9
   hs-source-dirs:       src
   default-language:     GHC2024
+  default-extensions:   OverloadedLabels
+                        OverloadedStrings
+                        RecordWildCards
   ghc-options:          -Wall
 
 test-suite gi-gtk4-declarative-adwaita-tests
@@ -65,6 +68,10 @@ test-suite gi-gtk4-declarative-adwaita-tests
                    , vector
   ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
   default-language:  GHC2024
+  default-extensions: OverloadedLabels
+                      OverloadedLists
+                      OverloadedStrings
+                      TemplateHaskell
   other-modules:     GI.Gtk.Declarative.Adwaita.BinTest
                    , GI.Gtk.Declarative.Adwaita.ComboRowTest
                    , GI.Gtk.Declarative.Adwaita.ContainerTest

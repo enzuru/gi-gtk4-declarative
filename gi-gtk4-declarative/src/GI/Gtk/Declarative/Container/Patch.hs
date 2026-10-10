@@ -1,9 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedLists  #-}
-{-# LANGUAGE TypeFamilies     #-}
-
 -- | This module implements the patch algorithm for containers.
 module GI.Gtk.Declarative.Container.Patch
   ( IsContainer(..)

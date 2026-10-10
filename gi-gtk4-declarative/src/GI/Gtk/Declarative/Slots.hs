@@ -3,8 +3,6 @@
 -- descendant constraints.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | Widget-valued properties.
 --
 -- Some GTK widgets hold another widget in a property rather than as a
