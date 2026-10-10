@@ -1,5 +1,9 @@
 * 0.8.0
     - Port to GTK 4 (gi-gtk 4.x). This is a breaking release; use 0.7 for GTK 3.
+    - Built as `GHC2024`, which needs GHC 9.10 or newer. The edition
+      carries what every module used to declare: `GADTs`, `DataKinds`,
+      `LambdaCase`, `TypeApplications` and the rest of `GHC2021`. A
+      package that depends on this one picks its own edition.
     - Event controllers: `onController`, `onControllerM`, and the named
       helpers in `GI.Gtk.Declarative.EventController`, since GTK 4 reports
       keys, pointers, and gestures through controllers rather than through

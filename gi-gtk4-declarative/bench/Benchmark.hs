@@ -1,7 +1,6 @@
-{-# LANGUAGE DisambiguateRecordFields #-}
-{-# LANGUAGE OverloadedLabels         #-}
-{-# LANGUAGE OverloadedLists          #-}
-{-# LANGUAGE OverloadedStrings        #-}
+{-# LANGUAGE OverloadedLabels  #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import           Control.Concurrent

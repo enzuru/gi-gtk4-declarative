@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 
 -- | Event handling for declarative widgets.
 module GI.Gtk.Declarative.EventSource

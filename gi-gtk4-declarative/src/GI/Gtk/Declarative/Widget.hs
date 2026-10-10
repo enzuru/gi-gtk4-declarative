@@ -1,9 +1,3 @@
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE ScopedTypeVariables    #-}
-{-# LANGUAGE TypeApplications       #-}
-{-# LANGUAGE TypeOperators          #-}
 
 -- | A 'Widget' value can wrap any 'Patchable' widget, hiding the underlying
 -- widget type, such that you can embed heterogeneous collections of widgets in

@@ -1,5 +1,7 @@
 * 0.8.0
     - Port to GTK 4 (gi-gtk 4.x). This is a breaking release; use 0.7 for GTK 3.
+    - Built as `GHC2024`, which needs GHC 9.10 or newer. A package that
+      depends on this one picks its own edition.
     - `run` creates and runs a `GLib.MainLoop`, as GTK 4 removed
       `gtk_main` and `gtk_main_quit`.
     - The window of an `App` is presented with `gtk_window_present` and

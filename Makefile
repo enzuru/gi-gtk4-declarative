@@ -17,9 +17,12 @@ ADWAITA  := gi-gtk4-declarative-adwaita/src
 ADWTEST  := gi-gtk4-declarative-adwaita/test
 EXAMPLES := examples
 
-# The cabal files say Haskell2010, so the direct GHC calls say it too,
-# rather than building against the newer default and finding out later.
-WARNINGS := -Wall -XHaskell2010
+# The cabal files say GHC2024, so the direct GHC calls say it too,
+# rather than building against a different default and finding out from
+# cabal later. The edition carries the extensions that every other
+# module declared by hand: GADTs, DataKinds, LambdaCase and the rest of
+# what GHC2021 already had.
+WARNINGS := -Wall -XGHC2024
 
 # Two packages in the dev shell hold a module called GI.Gtk: gi-gtk,
 # which is the one the cabal files name, and gi-gtk4, a copy of it under

@@ -1,3 +1,4 @@
+cabal-version:        3.12
 name:                 gi-gtk4-declarative-adwaita
 version:              0.8.0
 synopsis:             Declarative libadwaita widgets for gi-gtk4-declarative.
@@ -18,9 +19,8 @@ homepage:             https://owickstrom.github.io/gi-gtk-declarative/
 bug-reports:          https://github.com/owickstrom/gi-gtk-declarative/issues
 category:             Graphics
 build-type:           Simple
-cabal-version:        >=1.10
-extra-source-files:   CHANGELOG.md
-                    , test/ToggleApp.hs
+extra-doc-files:      CHANGELOG.md
+extra-source-files:   test/ToggleApp.hs
 tested-with:          GHC == 9.10.3
 
 library
@@ -34,7 +34,7 @@ library
                       , GI.Gtk.Declarative.Adwaita.ToastOverlay
                       , GI.Gtk.Declarative.Adwaita.ToggleGroup
                       , GI.Gtk.Declarative.Adwaita.ToolbarView
-  build-depends:        base                    >=4.10 && <5
+  build-depends:        base                    >=4.20 && <5
                       , gi-adwaita              >=1    && <2
                       , gi-glib                 >=2    && <3
                       , gi-gobject              >=2    && <3
@@ -46,14 +46,14 @@ library
                       , vector                  >=0.12 && <0.14
                       , gi-gtk4-declarative     >=0.8  && <0.9
   hs-source-dirs:       src
-  default-language:     Haskell2010
+  default-language:     GHC2024
   ghc-options:          -Wall
 
 test-suite gi-gtk4-declarative-adwaita-tests
   type:              exitcode-stdio-1.0
   hs-source-dirs:    test
   main-is:           Main.hs
-  build-depends:     base       >=4    && <5
+  build-depends:     base       >=4.20 && <5
                    , gi-adwaita >=1    && <2
                    , gi-glib    >=2    && <3
                    , gi-gtk     >=4    && <5
@@ -64,7 +64,7 @@ test-suite gi-gtk4-declarative-adwaita-tests
                    , text
                    , vector
   ghc-options:       -Wall -O2 -rtsopts -with-rtsopts=-N -threaded
-  default-language:  Haskell2010
+  default-language:  GHC2024
   other-modules:     GI.Gtk.Declarative.Adwaita.BinTest
                    , GI.Gtk.Declarative.Adwaita.ComboRowTest
                    , GI.Gtk.Declarative.Adwaita.ContainerTest

@@ -1,8 +1,6 @@
-{-# LANGUAGE NamedFieldPuns      #-}
-{-# LANGUAGE OverloadedLabels    #-}
-{-# LANGUAGE OverloadedLists     #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedLabels  #-}
+{-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 module CustomWidget where
 
 import           Control.Monad                  ( void )
@@ -15,7 +13,6 @@ import           GI.Gtk.Declarative
 import           GI.Gtk.Declarative.App.Simple
 import           GI.Gtk.Declarative.EventSource ( fromCancellation )
 
-
 -- * Custom widget for ranged 'Double' inputs
 -------------------------------------------
 
@@ -25,7 +22,6 @@ data NumberInputProperties = NumberInputProperties
   , step   :: Double
   , digits :: Word32
   } deriving (Eq, Show)
-
 
 newtype NumberInputEvent = NumberInputChanged Double
 

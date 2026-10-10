@@ -22,6 +22,9 @@ these steps and guidelines:
   `-threaded` option passed to GHC. If you are not seeing a window,
   check this first.
 
+- The library is built as `GHC2024`, so it needs GHC 9.10 or newer.
+  Your own package picks its own language edition.
+
 
 ## Cabal Example
 
@@ -51,7 +54,15 @@ in the `build-depends` list of your library or executable:
         , gi-gtk4-declarative-app-simple
         , ...
       ghc-options:      -threaded
-      default-language: Haskell2010
+      default-language: GHC2024
+
+`GHC2024` is a suggestion rather than a requirement. Markup reaches for
+`OverloadedLabels` for a property name, `OverloadedStrings` for the
+text in one, and `OverloadedLists` for a list of children. No edition
+carries those three, so declare them in `default-extensions` or in each
+module. What an edition saves you is
+the rest: `GADTs`, `DataKinds`, `LambdaCase`, `TypeApplications` and
+the others that a module of markup reaches for without meaning to.
 
 Note that `gi-gtk4-declarative-app-simple` is not strictly required,
 unless you want to write your application using the

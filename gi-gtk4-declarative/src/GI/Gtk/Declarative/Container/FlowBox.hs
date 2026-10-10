@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 -- | Implementation of 'Gtk.FlowBox' as a declarative container.
 module GI.Gtk.Declarative.Container.FlowBox where
 

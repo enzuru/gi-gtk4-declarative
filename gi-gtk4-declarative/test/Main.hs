@@ -30,7 +30,6 @@ import qualified GI.Gtk.Declarative.AttributeTest
                                                as AttributeTest
 import qualified GI.Gtk.Declarative.SlotTest   as SlotTest
 
-
 main :: IO ()
 main = do
   -- A nested X server has no GL worth speaking of, and the tests run

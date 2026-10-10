@@ -2,12 +2,8 @@
 -- the classes come from the core and the widgets from gi-adwaita.
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-{-# LANGUAGE DeriveFunctor         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NamedFieldPuns        #-}
-{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 
 -- 'headerSuffix' names a specific Adwaita class and `Gtk.IsWidget`
 -- both, which GHC would rather saw spelled out as descendant

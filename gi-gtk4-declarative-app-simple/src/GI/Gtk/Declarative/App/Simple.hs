@@ -3,10 +3,7 @@
 -- constraints, which would say the same thing less clearly.
 {-# OPTIONS_GHC -Wno-simplifiable-class-constraints #-}
 
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | A simple application architecture style inspired by PureScript's Pux
 -- framework.

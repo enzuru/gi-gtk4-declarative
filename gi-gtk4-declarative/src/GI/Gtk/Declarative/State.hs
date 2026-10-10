@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds      #-}
-{-# LANGUAGE GADTs          #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE RankNTypes     #-}
 -- | The 'StateTree' and 'SomeState' form a "shadow state"
 -- representation, used in patching. Declarative widgets can return,
 -- and later on reuse, its underlying GTK widget, collected

@@ -1,7 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE DeriveFunctor         #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedLabels      #-}
+{-# LANGUAGE OverloadedLabels #-}
 
 -- | Implementation of 'Gtk.CenterBox' as a declarative container.
 module GI.Gtk.Declarative.Container.CenterBox

@@ -1,16 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
 
-{-# LANGUAGE DataKinds              #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE GADTs                  #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE RecordWildCards         #-}
-{-# LANGUAGE ScopedTypeVariables     #-}
-{-# LANGUAGE OverloadedLabels       #-}
-{-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE TypeOperators          #-}
+{-# LANGUAGE RecordWildCards  #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE TypeFamilies     #-}
 
 -- | Attribute lists on declarative objects, supporting the underlying
 -- attributes from "Data.GI.Base.Attributes", along with CSS class lists, and

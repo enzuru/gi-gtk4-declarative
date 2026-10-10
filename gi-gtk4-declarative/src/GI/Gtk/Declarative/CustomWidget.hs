@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- | While you can instantiate 'Patchable' and 'EventSource' for your
 -- own data types, it's a bit complicated. The 'CustomWidget' data

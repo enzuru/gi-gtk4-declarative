@@ -1,9 +1,6 @@
 {-# LANGUAGE DefaultSignatures      #-}
-{-# LANGUAGE DeriveFunctor          #-}
-{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE TypeOperators          #-}
 
 -- | Shared interfaces for containers.
 module GI.Gtk.Declarative.Container.Class

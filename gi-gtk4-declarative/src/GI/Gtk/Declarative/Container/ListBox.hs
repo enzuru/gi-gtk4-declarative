@@ -1,8 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 -- | Implementation of 'Gtk.ListBox' as a declarative container.
 --
 -- A list box takes any widget as a child, which is what lets a row from
